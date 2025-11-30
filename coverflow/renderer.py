@@ -153,7 +153,7 @@ class CoverflowRenderer:
                         img_rgba, position, self.config.width, self.config.height,
                         alpha=self.config.reflection, perspective=self.config.perspective,
                         side_scale=self.config.side_scale, spacing=self.config.spacing,
-                        mode=self.config.mode
+                        mode=self.config.mode, reflection_length=self.config.reflection_length
                     )
                     if reflection is not None:
                         refl_y = y_pos + transformed.shape[0] + 5

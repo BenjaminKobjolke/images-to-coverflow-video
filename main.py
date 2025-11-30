@@ -75,6 +75,12 @@ def parse_args():
         help="Reflection opacity (0 = no reflection, 1 = full opacity, default: 0.2)"
     )
     parser.add_argument(
+        "--reflection-length",
+        type=float,
+        default=0.5,
+        help="Length of reflection as fraction of image height (0.0-1.0, default: 0.5)"
+    )
+    parser.add_argument(
         "--repeat",
         action="store_true",
         help="Loop images so there's always content on both sides"
@@ -111,6 +117,7 @@ def main():
     print(f"  Visible range: {args.visible_range}")
     print(f"  Spacing: {args.spacing}")
     print(f"  Reflection: {args.reflection}")
+    print(f"  Reflection length: {args.reflection_length}")
     print(f"  Repeat: {args.repeat}")
     print(f"  Mode: {args.mode}")
     print(f"  Alignment: {args.alignment}")
@@ -131,6 +138,7 @@ def main():
         visible_range=args.visible_range,
         spacing=args.spacing,
         reflection=args.reflection,
+        reflection_length=args.reflection_length,
         repeat=args.repeat,
         mode=args.mode,
         alignment=args.alignment,

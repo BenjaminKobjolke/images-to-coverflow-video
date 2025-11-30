@@ -79,9 +79,30 @@ class ImageTransformer:
             return img_scaled, x_offset, y_offset
 
         # For flat mode: skip perspective distortion, just use scaled image
-        # Use canvas_width for spacing so images spread out evenly (not bunch up)
+        # Calculate position to ensure consistent overlap between images
         if mode == "flat":
-            x_offset = int((canvas_width - new_w) / 2 + angle * canvas_width * spacing)
+            if abs_angle < 0.01:
+                x_offset = int((canvas_width - new_w) / 2)
+            else:
+                # Estimate center image width
+                center_width = new_w / scale
+
+                # k factor for overlap calculation
+                # spacing = fraction NOT overlapping (0.1 = 10% gap, 90% overlap)
+                k = 0.5 * (1 - side_scale) + spacing * side_scale
+
+                # Displacement using geometric series sum
+                if side_scale < 1.0:
+                    displacement = center_width * k * (1 - scale) / (1 - side_scale)
+                else:
+                    displacement = center_width * k * abs_angle
+
+                # Apply direction
+                if angle > 0:
+                    x_offset = int((canvas_width - new_w) / 2 + displacement)
+                else:
+                    x_offset = int((canvas_width - new_w) / 2 - displacement)
+
             y_offset = int((canvas_height - new_h) / 2)
             return img_scaled, x_offset, y_offset
 
@@ -141,6 +162,7 @@ class ImageTransformer:
         side_scale: float = 0.3,
         spacing: float = 0.35,
         mode: str = "arc",
+        reflection_length: float = 0.5,
     ) -> Tuple[Optional[np.ndarray], int, int]:
         """Create a reflection effect below the image.
 
@@ -157,6 +179,7 @@ class ImageTransformer:
             side_scale: How much side images shrink (0 = same size, default: 0.3).
             spacing: Horizontal spacing between images (default: 0.35).
             mode: Layout mode - 'arc' (circular) or 'flat' (straight row).
+            reflection_length: Fraction of image height to show in reflection (0.0-1.0).
 
         Returns:
             Tuple of (reflected image with gradient fade, x_offset, y_offset).
@@ -174,7 +197,12 @@ class ImageTransformer:
 
         h, w = transformed.shape[:2]
 
-        # Step 3: Apply gradient fade to alpha channel
+        # Step 3: Crop to reflection_length (top portion of flipped = bottom of original)
+        crop_h = max(1, int(h * reflection_length))
+        transformed = transformed[:crop_h, :]
+        h = crop_h
+
+        # Step 4: Apply gradient fade to alpha channel
         gradient = np.linspace(1.0, 0, h).reshape(-1, 1)
         gradient = np.tile(gradient, (1, w))
 

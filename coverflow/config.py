@@ -21,6 +21,7 @@ class Config:
     visible_range: int = 3  # Number of images visible on each side
     spacing: float = 0.35  # Horizontal spacing between images (lower = closer together)
     reflection: float = 0.2  # Reflection opacity (0 = no reflection, 1 = full opacity)
+    reflection_length: float = 0.5  # Fraction of image height to show in reflection (0.0-1.0)
     repeat: bool = False  # Loop images so there's always content on both sides
     mode: str = "arc"  # "arc" or "flat"
     alignment: str = "center"  # "center", "top", or "bottom"

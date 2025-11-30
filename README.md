@@ -19,6 +19,13 @@ python main.py --source input/ --width 1400 --height 800 --mode flat --visible-r
 
 # With custom background and reflections
 python main.py --source input/ --background bg.png --reflection 0.3 --repeat
+
+# Preview a specific frame (frame 500) or time (24.2 seconds)
+python main.py --source input/ --preview 500
+python main.py --source input/ --preview 24.2
+
+# Get video statistics without generating
+python main.py --source input/ --statistics
 ```
 
 ## Options
@@ -42,6 +49,10 @@ python main.py --source input/ --background bg.png --reflection 0.3 --repeat
 | `--repeat` | false | Loop images so there's always content on both sides |
 | `--mode` | arc | Layout mode: `arc` (3D carousel) or `flat` (straight row, no perspective) |
 | `--alignment` | center | Vertical alignment: `center`, `top`, or `bottom` |
+| `--image-scale` | 0.6 | Maximum image size as fraction of canvas (0.0-1.0) |
+| `--image-y` | 0.5 | Vertical position of images (0.0=top, 0.5=center, 1.0=bottom) |
+| `--statistics` | false | Only output video statistics (frames, duration) without generating |
+| `--preview` | (none) | Render single frame as preview.jpg (integer=frame number, decimal=seconds) |
 
 ## Supported Image Formats
 

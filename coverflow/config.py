@@ -25,3 +25,7 @@ class Config:
     repeat: bool = False  # Loop images so there's always content on both sides
     mode: str = "arc"  # "arc" or "flat"
     alignment: str = "center"  # "center", "top", or "bottom"
+    image_scale: float = 0.6  # Maximum image size as fraction of canvas (0.0-1.0)
+    image_y: float = 0.5  # Vertical position as fraction of canvas height (0=top, 0.5=center, 1=bottom)
+    statistics: bool = False  # Only output statistics, don't generate video
+    preview: Optional[float] = None  # Preview frame (int=frame number, float=seconds)

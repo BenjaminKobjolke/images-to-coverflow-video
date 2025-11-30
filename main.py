@@ -97,6 +97,29 @@ def parse_args():
         default="center",
         help="Vertical alignment: 'center', 'top', or 'bottom' (default: center)"
     )
+    parser.add_argument(
+        "--image-scale",
+        type=float,
+        default=0.6,
+        help="Maximum image size as fraction of canvas (0.0-1.0, default: 0.6)"
+    )
+    parser.add_argument(
+        "--image-y",
+        type=float,
+        default=0.5,
+        help="Vertical position of images (0.0=top, 0.5=center, 1.0=bottom, default: 0.5)"
+    )
+    parser.add_argument(
+        "--statistics",
+        action="store_true",
+        help="Only output video statistics (frames, duration) without generating"
+    )
+    parser.add_argument(
+        "--preview",
+        type=float,
+        default=None,
+        help="Render single frame as preview.jpg (integer=frame number, decimal=seconds)"
+    )
     return parser.parse_args()
 
 
@@ -121,6 +144,8 @@ def main():
     print(f"  Repeat: {args.repeat}")
     print(f"  Mode: {args.mode}")
     print(f"  Alignment: {args.alignment}")
+    print(f"  Image scale: {args.image_scale}")
+    print(f"  Image Y: {args.image_y}")
     print()
 
     # Create configuration
@@ -142,6 +167,10 @@ def main():
         repeat=args.repeat,
         mode=args.mode,
         alignment=args.alignment,
+        image_scale=args.image_scale,
+        image_y=args.image_y,
+        statistics=args.statistics,
+        preview=args.preview,
     )
 
     # Load images

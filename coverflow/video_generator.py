@@ -32,6 +32,54 @@ class VideoGenerator:
         # Calculate frame counts
         transition_frames = int(self.config.transition * self.config.fps)
         hold_frames = int(self.config.hold * self.config.fps)
+        num_images = len(images)
+
+        # Calculate total frames: hold for each image + transitions between images
+        total_frames = num_images * hold_frames + (num_images - 1) * transition_frames
+        total_duration = total_frames / self.config.fps
+
+        # Statistics mode: just print stats and return
+        if self.config.statistics:
+            print("Statistics:")
+            print(f"  Images: {num_images}")
+            print(f"  Total frames: {total_frames}")
+            print(f"  Duration: {total_duration:.2f} seconds")
+            return
+
+        # Preview mode: render single frame as preview.jpg
+        if self.config.preview is not None:
+            # Determine frame number
+            if self.config.preview == int(self.config.preview):
+                # Whole number = frame number
+                target_frame = int(self.config.preview)
+            else:
+                # Decimal = seconds, convert to frame
+                target_frame = int(self.config.preview * self.config.fps)
+
+            # Clamp to valid range
+            target_frame = max(0, min(target_frame, total_frames - 1))
+
+            # Find which image and offset for this frame
+            frames_per_image = hold_frames + transition_frames
+            img_idx = target_frame // frames_per_image
+            frame_in_segment = target_frame % frames_per_image
+
+            # Clamp image index
+            img_idx = min(img_idx, num_images - 1)
+
+            if frame_in_segment < hold_frames:
+                offset = 0  # In hold phase
+            else:
+                # In transition phase
+                trans_frame = frame_in_segment - hold_frames
+                offset = trans_frame / transition_frames if transition_frames > 0 else 0
+                offset = ease_in_out_cubic(offset)
+
+            # Render and save
+            canvas = self.renderer.render_frame(images, img_idx, offset)
+            cv2.imwrite("preview.jpg", canvas)
+            print(f"Preview saved to 'preview.jpg' (frame {target_frame}, image {img_idx + 1}/{num_images})")
+            return
 
         # Initialize video writer
         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
@@ -46,8 +94,7 @@ class VideoGenerator:
             print(f"Error: Could not create video file '{self.config.output}'")
             sys.exit(1)
 
-        total_frames = 0
-        num_images = len(images)
+        frame_count = 0
 
         print("Generating video...")
 
@@ -57,7 +104,7 @@ class VideoGenerator:
             for frame in range(hold_frames):
                 canvas = self.renderer.render_frame(images, img_idx, 0)
                 out.write(canvas)
-                total_frames += 1
+                frame_count += 1
 
             # Transition phase - animate to next image
             if img_idx < num_images - 1:
@@ -70,7 +117,7 @@ class VideoGenerator:
 
                     canvas = self.renderer.render_frame(images, img_idx, offset)
                     out.write(canvas)
-                    total_frames += 1
+                    frame_count += 1
 
         out.release()
-        print(f"Video saved to '{self.config.output}' ({total_frames} frames)")
+        print(f"Video saved to '{self.config.output}' ({frame_count} frames)")

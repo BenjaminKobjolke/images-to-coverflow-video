@@ -108,8 +108,8 @@ class CoverflowRenderer:
         to_render.sort(key=lambda x: -x[0])
 
         # Maximum image size
-        max_img_width = int(self.config.width * 0.5)
-        max_img_height = int(self.config.height * 0.6)
+        max_img_width = int(self.config.width * self.config.image_scale)
+        max_img_height = int(self.config.height * self.config.image_scale)
 
         # Render each image
         for depth, position, img_cv in to_render:
@@ -132,15 +132,16 @@ class CoverflowRenderer:
             )
 
             if transformed is not None:
-                # Adjust y position based on alignment
+                # Calculate base y position from image_y setting
+                base_y = int(self.config.height * self.config.image_y - transformed.shape[0] / 2)
+
+                # Apply alignment adjustment
                 if self.config.alignment == "bottom":
-                    bottom_y = int(self.config.height * 0.75)
-                    y_pos = bottom_y - transformed.shape[0]
+                    y_pos = int(base_y + transformed.shape[0] / 2)
                 elif self.config.alignment == "top":
-                    top_y = int(self.config.height * 0.25)
-                    y_pos = top_y
+                    y_pos = int(base_y - transformed.shape[0] / 2)
                 else:  # center (default)
-                    y_pos = int(y_pos - self.config.height * 0.05)
+                    y_pos = base_y
 
                 # Blend onto canvas
                 canvas = self.transformer.blend_onto_canvas(

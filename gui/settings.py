@@ -6,7 +6,8 @@ from typing import Any, Dict
 # Default settings
 DEFAULTS = {
     "theme": "Dark",
-    "sidebar_columns": 1
+    "sidebar_columns": 1,
+    "last_project": None
 }
 
 

@@ -53,26 +53,41 @@ class PreviewWorker:
             transition_frames = int(self.config.transition * self.config.fps)
             hold_frames = int(self.config.hold * self.config.fps)
             num_images = len(images)
+
+            # Calculate total frames (must match calculate_total_frames)
             total_frames = num_images * hold_frames + (num_images - 1) * transition_frames
+            if self.config.loop:
+                total_frames += transition_frames
 
             # Clamp frame number
             frame = max(0, min(self.frame_number, total_frames - 1))
 
-            # Find which image and offset
-            frames_per_image = hold_frames + transition_frames
-            img_idx = frame // frames_per_image
-            frame_in_segment = frame % frames_per_image
+            # Calculate the frame count without loop transition
+            regular_frames = num_images * hold_frames + (num_images - 1) * transition_frames
 
-            # Clamp image index
-            img_idx = min(img_idx, num_images - 1)
-
-            if frame_in_segment < hold_frames:
-                offset = 0  # In hold phase
-            else:
-                # In transition phase
-                trans_frame = frame_in_segment - hold_frames
+            # Check if we're in the loop transition phase
+            if self.config.loop and frame >= regular_frames:
+                # Loop transition: last image transitioning back to first
+                img_idx = num_images - 1
+                trans_frame = frame - regular_frames
                 offset = trans_frame / transition_frames if transition_frames > 0 else 0
                 offset = ease_in_out_cubic(offset)
+            else:
+                # Normal playback: find which image and offset
+                frames_per_image = hold_frames + transition_frames
+                img_idx = frame // frames_per_image
+                frame_in_segment = frame % frames_per_image
+
+                # Clamp image index
+                img_idx = min(img_idx, num_images - 1)
+
+                if frame_in_segment < hold_frames:
+                    offset = 0  # In hold phase
+                else:
+                    # In transition phase
+                    trans_frame = frame_in_segment - hold_frames
+                    offset = trans_frame / transition_frames if transition_frames > 0 else 0
+                    offset = ease_in_out_cubic(offset)
 
             # Render frame
             canvas = renderer.render_frame(images, img_idx, offset)

@@ -29,6 +29,7 @@ from .projects import (
     get_project_name,
     create_default_projects,
 )
+from .settings import load_settings, save_settings
 from .dialogs import InterfaceSettingsDialog
 
 
@@ -62,6 +63,13 @@ class CoverflowApp(ctk.CTkFrame):
 
         # Load default preset values
         self._load_default_values()
+
+        # Bind keyboard shortcuts
+        self.master.bind("<Control-r>", lambda e: self._on_preview_refresh())
+        self.master.bind("<Control-R>", lambda e: self._on_preview_refresh())
+
+        # Load last project on startup
+        self._load_last_project()
 
     def _create_sidebar(self):
         """Create the left sidebar with settings."""
@@ -311,6 +319,9 @@ class CoverflowApp(ctk.CTkFrame):
         if not config:
             return
 
+        # Update total frames immediately when refresh is clicked
+        self._update_total_frames()
+
         self.preview_frame.set_loading(True)
         frame_number = self.preview_frame.get_frame_number()
 
@@ -431,6 +442,31 @@ class CoverflowApp(ctk.CTkFrame):
         """Open interface settings dialog."""
         InterfaceSettingsDialog(self.master)
 
+    def _load_last_project(self):
+        """Load the last opened project on startup."""
+        settings = load_settings()
+        last_project = settings.get("last_project")
+        if last_project:
+            path = Path(last_project)
+            if path.exists():
+                try:
+                    self._selected_project_path = path
+                    values = load_project(path)
+                    self._set_all_values(values)
+                    self._update_title()
+                except Exception:
+                    # Silently ignore errors loading last project
+                    self._selected_project_path = None
+
+    def _save_last_project(self):
+        """Save the current project path as the last opened project."""
+        settings = load_settings()
+        if self._selected_project_path:
+            settings["last_project"] = str(self._selected_project_path)
+        else:
+            settings["last_project"] = None
+        save_settings(settings)
+
     def _on_new_project(self):
         """Create a new project - reset to defaults and clear current project."""
         self._selected_project_path = None
@@ -454,6 +490,7 @@ class CoverflowApp(ctk.CTkFrame):
             values = load_project(self._selected_project_path)
             self._set_all_values(values)
             self._update_title()
+            self._save_last_project()
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load project:\n{e}")
             self._selected_project_path = None
@@ -491,5 +528,6 @@ class CoverflowApp(ctk.CTkFrame):
             save_project(filepath, name, values)
             self._selected_project_path = filepath
             self._update_title()
+            self._save_last_project()
         except Exception as e:
             messagebox.showerror("Error", f"Failed to save project:\n{e}")

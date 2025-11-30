@@ -62,9 +62,16 @@ class PreviewFrame(ctk.CTkFrame):
         self.frame_slider.set(0)
         self.frame_slider.grid(row=0, column=1, padx=5, sticky="ew")
 
-        # Frame value label
-        self.frame_label = ctk.CTkLabel(controls_frame, text="0 / 100", width=80)
-        self.frame_label.grid(row=0, column=2, padx=10)
+        # Frame value label (shows total)
+        self.frame_label = ctk.CTkLabel(controls_frame, text="/ 100", width=50)
+        self.frame_label.grid(row=0, column=2, padx=(5, 0))
+
+        # Frame number entry
+        self.frame_entry = ctk.CTkEntry(controls_frame, width=60)
+        self.frame_entry.insert(0, "0")
+        self.frame_entry.grid(row=0, column=3, padx=5)
+        self.frame_entry.bind("<Return>", self._on_entry_submit)
+        self.frame_entry.bind("<FocusOut>", self._on_entry_submit)
 
         # Refresh button
         self.refresh_btn = ctk.CTkButton(
@@ -73,14 +80,32 @@ class PreviewFrame(ctk.CTkFrame):
             width=80,
             command=self._on_refresh_click,
         )
-        self.refresh_btn.grid(row=0, column=3)
+        self.refresh_btn.grid(row=0, column=4)
 
     def _on_slider_change(self, value: float):
         """Handle frame slider change."""
         frame = int(value)
-        self.frame_label.configure(text=f"{frame} / {self._total_frames}")
+        self.frame_label.configure(text=f"/ {self._total_frames}")
+        self.frame_entry.delete(0, "end")
+        self.frame_entry.insert(0, str(frame))
         if self.on_frame_change:
             self.on_frame_change(frame)
+
+    def _on_entry_submit(self, event=None):
+        """Handle frame entry submission."""
+        try:
+            frame = int(self.frame_entry.get())
+            frame = max(0, min(frame, self._total_frames - 1))
+            self.frame_slider.set(frame)
+            self.frame_entry.delete(0, "end")
+            self.frame_entry.insert(0, str(frame))
+            if self.on_frame_change:
+                self.on_frame_change(frame)
+        except ValueError:
+            # Invalid input, reset to slider value
+            current = int(self.frame_slider.get())
+            self.frame_entry.delete(0, "end")
+            self.frame_entry.insert(0, str(current))
 
     def _on_refresh_click(self):
         """Handle refresh button click."""
@@ -91,17 +116,32 @@ class PreviewFrame(ctk.CTkFrame):
         """Set the total number of frames for the slider."""
         self._total_frames = max(1, total)
         self.frame_slider.configure(to=self._total_frames - 1)
-        current = int(self.frame_slider.get())
-        self.frame_label.configure(text=f"{current} / {self._total_frames}")
+        self.frame_label.configure(text=f"/ {self._total_frames}")
 
     def get_frame_number(self) -> int:
-        """Get the currently selected frame number."""
+        """Get the currently selected frame number.
+
+        Also syncs the entry field value to the slider if it differs.
+        """
+        # Sync entry value to slider (in case user typed but didn't submit)
+        try:
+            entry_value = int(self.frame_entry.get())
+            entry_value = max(0, min(entry_value, self._total_frames - 1))
+            current_slider = int(self.frame_slider.get())
+            if entry_value != current_slider:
+                self.frame_slider.set(entry_value)
+                self.frame_entry.delete(0, "end")
+                self.frame_entry.insert(0, str(entry_value))
+        except ValueError:
+            pass  # Invalid entry, just use slider value
         return int(self.frame_slider.get())
 
     def set_frame_number(self, frame: int):
         """Set the current frame number."""
         self.frame_slider.set(frame)
-        self.frame_label.configure(text=f"{frame} / {self._total_frames}")
+        self.frame_entry.delete(0, "end")
+        self.frame_entry.insert(0, str(frame))
+        self.frame_label.configure(text=f"/ {self._total_frames}")
 
     def display_image(self, cv_image: np.ndarray):
         """Display an OpenCV image in the preview area.

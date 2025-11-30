@@ -1,5 +1,10 @@
 {
   "theme": "Dark",
   "sidebar_columns": 2,
-  "last_project": "D:\\GIT\\BenjaminKobjolke\\images-to-coverflow-video\\projects\\helena01.json"
+  "last_project": "D:\\GIT\\BenjaminKobjolke\\images-to-coverflow-video\\projects\\helena01.json",
+  "window_width": 1899,
+  "window_height": 966,
+  "window_x": 1916,
+  "window_y": 16,
+  "window_maximized": false
 }

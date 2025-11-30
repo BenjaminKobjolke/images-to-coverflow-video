@@ -1,10 +1,12 @@
 """Preview display frame."""
 
-from typing import Callable, Optional
+from typing import Callable, Optional, Tuple
 import customtkinter as ctk
-from PIL import Image
+from PIL import Image, ImageTk
 import numpy as np
 import cv2
+
+from ..widgets.range_slider import RangeSlider
 
 
 class PreviewFrame(ctk.CTkFrame):
@@ -42,7 +44,7 @@ class PreviewFrame(ctk.CTkFrame):
             width=640,
             height=480,
         )
-        self.preview_label.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
+        self.preview_label.grid(row=0, column=0, padx=10, pady=10)
 
         # Controls frame
         controls_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -82,6 +84,36 @@ class PreviewFrame(ctk.CTkFrame):
         )
         self.refresh_btn.grid(row=0, column=4)
 
+        # Range controls frame
+        range_frame = ctk.CTkFrame(self, fg_color="transparent")
+        range_frame.grid(row=2, column=0, padx=10, pady=(0, 10), sticky="ew")
+        range_frame.grid_columnconfigure(1, weight=1)
+
+        # Range label
+        ctk.CTkLabel(range_frame, text="Range:").grid(row=0, column=0, padx=(0, 10))
+
+        # Range slider
+        self.range_slider = RangeSlider(
+            range_frame,
+            from_=0,
+            to=100,
+            command=self._on_range_change,
+        )
+        self.range_slider.grid(row=0, column=1, padx=5, sticky="ew")
+
+        # Range info label
+        self.range_label = ctk.CTkLabel(range_frame, text="0 - 100 (101 frames)", width=150)
+        self.range_label.grid(row=0, column=2, padx=(5, 0))
+
+        # Reset range button
+        self.reset_range_btn = ctk.CTkButton(
+            range_frame,
+            text="Reset",
+            width=60,
+            command=self._on_reset_range,
+        )
+        self.reset_range_btn.grid(row=0, column=3, padx=(5, 0))
+
     def _on_slider_change(self, value: float):
         """Handle frame slider change."""
         frame = int(value)
@@ -112,11 +144,43 @@ class PreviewFrame(ctk.CTkFrame):
         if self.on_refresh:
             self.on_refresh()
 
+    def _on_range_change(self, start: int, end: int):
+        """Handle range slider change."""
+        frames = end - start + 1
+        self.range_label.configure(text=f"{start} - {end} ({frames} frames)")
+
+    def _on_reset_range(self):
+        """Reset range to full range."""
+        self.range_slider.reset()
+        start, end = self.range_slider.get()
+        frames = end - start + 1
+        self.range_label.configure(text=f"{start} - {end} ({frames} frames)")
+
     def set_total_frames(self, total: int):
         """Set the total number of frames for the slider."""
-        self._total_frames = max(1, total)
+        new_total = max(1, total)
+
+        # Only update if total changed
+        if new_total == self._total_frames:
+            return
+
+        self._total_frames = new_total
         self.frame_slider.configure(to=self._total_frames - 1)
         self.frame_label.configure(text=f"/ {self._total_frames}")
+
+        # Update range slider bounds, preserving current selection if valid
+        current_start, current_end = self.range_slider.get()
+        self.range_slider.configure_range(0, self._total_frames - 1)
+
+        # Clamp current range to new bounds
+        new_start = min(current_start, self._total_frames - 1)
+        new_end = min(current_end, self._total_frames - 1)
+        if new_start > new_end:
+            new_start = new_end
+
+        self.range_slider.set_range(new_start, new_end)
+        frames = new_end - new_start + 1
+        self.range_label.configure(text=f"{new_start} - {new_end} ({frames} frames)")
 
     def get_frame_number(self) -> int:
         """Get the currently selected frame number.
@@ -156,34 +220,31 @@ class PreviewFrame(ctk.CTkFrame):
         pil_image = Image.fromarray(rgb)
 
         # Scale to fit preview area while maintaining aspect ratio
-        preview_width = self.preview_label.winfo_width()
-        preview_height = self.preview_label.winfo_height()
+        preview_width = self.winfo_width() - 20
+        preview_height = self.winfo_height() - 120
 
         # Use minimum sensible size if widget not yet rendered
         if preview_width < 100:
-            preview_width = 640
+            preview_width = 400
         if preview_height < 100:
-            preview_height = 480
+            preview_height = 300
 
-        # Calculate scale to fit
+        # Calculate scale to fit (only scale down, never up)
         scale = min(
             preview_width / pil_image.width,
             preview_height / pil_image.height,
+            1.0,
         )
         new_width = int(pil_image.width * scale)
         new_height = int(pil_image.height * scale)
 
         pil_image = pil_image.resize((new_width, new_height), Image.LANCZOS)
 
-        # Convert to CTkImage
-        ctk_image = ctk.CTkImage(
-            light_image=pil_image,
-            dark_image=pil_image,
-            size=(new_width, new_height),
-        )
+        # Convert to PhotoImage (bypass CTkImage DPI scaling issues)
+        photo_image = ImageTk.PhotoImage(pil_image)
 
-        self.preview_label.configure(image=ctk_image, text="")
-        self._current_image = ctk_image  # Keep reference to prevent garbage collection
+        self.preview_label.configure(image=photo_image, text="", width=new_width, height=new_height)
+        self._current_image = photo_image  # Keep reference to prevent garbage collection
 
     def set_loading(self, loading: bool = True):
         """Show loading state."""
@@ -197,3 +258,37 @@ class PreviewFrame(ctk.CTkFrame):
         """Show an error message in the preview area."""
         self.preview_label.configure(image=None, text=message)
         self._current_image = None
+
+    def get_render_range(self) -> Tuple[Optional[int], Optional[int]]:
+        """Get the selected render range.
+
+        Returns:
+            Tuple of (start_frame, end_frame), or (None, None) if full range is selected.
+        """
+        start, end = self.range_slider.get()
+        # If full range, return None to indicate no range restriction
+        if start == 0 and end == self._total_frames - 1:
+            return (None, None)
+        return (start, end)
+
+    def set_render_range(self, start: Optional[int], end: Optional[int]):
+        """Set the render range.
+
+        Args:
+            start: Start frame, or None for beginning.
+            end: End frame, or None for end.
+        """
+        if start is None:
+            start = 0
+        if end is None:
+            end = self._total_frames - 1
+
+        # Clamp to valid bounds
+        start = max(0, min(start, self._total_frames - 1))
+        end = max(0, min(end, self._total_frames - 1))
+        if start > end:
+            start = end
+
+        self.range_slider.set_range(start, end)
+        frames = end - start + 1
+        self.range_label.configure(text=f"{start} - {end} ({frames} frames)")

@@ -1,0 +1,28 @@
+{
+  "project_name": "project_example",
+  "project_version": "1.0",
+  "settings": {
+    "source": "D:/GIT/BenjaminKobjolke/images-to-coverflow-video/input_example",
+    "width": 600,
+    "height": 600,
+    "fps": 30,
+    "output": "D:/GIT/BenjaminKobjolke/images-to-coverflow-video/output/helena01.mp4",
+    "transition": 0.3,
+    "hold": 0.5,
+    "mode": "flat",
+    "alignment": "center",
+    "visible_range": 5,
+    "spacing": 0.2,
+    "perspective": 0.3,
+    "side_scale": 0.8,
+    "image_scale": 0.739,
+    "image_y": 0.5,
+    "background": null,
+    "reflection": 0.28,
+    "reflection_length": 0.11,
+    "repeat": true,
+    "loop": true,
+    "range_start": null,
+    "range_end": null
+  }
+}

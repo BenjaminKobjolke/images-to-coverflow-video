@@ -30,6 +30,14 @@ class Config:
     image_y: float = 0.5  # Vertical position as fraction of canvas height (0=top, 0.5=center, 1=bottom)
     statistics: bool = False  # Only output statistics, don't generate video
     preview: Optional[float] = None  # Preview frame (int=frame number, float=seconds)
+    start_frame: Optional[int] = None  # Frame to start rendering from (0-indexed)
+    end_frame: Optional[int] = None  # Frame to stop rendering at (inclusive)
+
+    # Encoding options
+    encoder: str = "h264"  # h264 or h265
+    crf: int = 23  # 0-51, lower = better quality, larger file
+    preset: str = "medium"  # ultrafast, fast, medium, slow, veryslow
+    max_bitrate: Optional[str] = None  # e.g. "10M" - caps bitrate for constrained quality
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert config to dictionary for serialization."""

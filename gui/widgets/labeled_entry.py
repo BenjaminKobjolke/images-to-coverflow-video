@@ -88,3 +88,7 @@ class LabeledEntry(ctk.CTkFrame):
             value = int(value)
         self._value = value
         self.var.set(str(value))
+
+    def set_command(self, command: Callable[[Union[int, float]], None]):
+        """Set or update the callback command."""
+        self.user_command = command

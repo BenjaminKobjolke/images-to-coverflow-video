@@ -7,7 +7,12 @@ from typing import Any, Dict
 DEFAULTS = {
     "theme": "Dark",
     "sidebar_columns": 1,
-    "last_project": None
+    "last_project": None,
+    "window_width": 1200,
+    "window_height": 800,
+    "window_x": None,  # None = center on screen
+    "window_y": None,
+    "window_maximized": False,
 }
 
 

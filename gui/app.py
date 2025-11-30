@@ -19,7 +19,7 @@ from .frames import (
     EffectsFrame,
     PreviewFrame,
 )
-from .widgets import ProgressDialog
+from .widgets import ProgressDialog, SuccessDialog
 from .workers import PreviewWorker, VideoWorker
 from .workers.preview_worker import calculate_total_frames
 from .projects import (
@@ -233,6 +233,12 @@ class CoverflowApp(ctk.CTkFrame):
         values.update(self.transform_frame.get_values())
         values.update(self.image_frame.get_values())
         values.update(self.effects_frame.get_values())
+
+        # Include render range
+        start, end = self.preview_frame.get_render_range()
+        values["range_start"] = start
+        values["range_end"] = end
+
         return values
 
     def _set_all_values(self, values: dict):
@@ -246,6 +252,16 @@ class CoverflowApp(ctk.CTkFrame):
         self.image_frame.set_values(values)
         self.effects_frame.set_values(values)
 
+        # Update total frames first (needed for range slider bounds)
+        self._update_total_frames()
+
+        # Restore render range if saved
+        if "range_start" in values or "range_end" in values:
+            self.preview_frame.set_render_range(
+                values.get("range_start"),
+                values.get("range_end")
+            )
+
     def _build_config(self) -> Optional[Config]:
         """Build a Config object from current settings."""
         values = self._get_all_values()
@@ -257,6 +273,9 @@ class CoverflowApp(ctk.CTkFrame):
         if not os.path.isdir(values["source"]):
             messagebox.showerror("Error", "Source folder does not exist.")
             return None
+
+        # Get frame range from preview frame
+        start_frame, end_frame = self.preview_frame.get_render_range()
 
         return Config(
             source=values["source"],
@@ -279,6 +298,12 @@ class CoverflowApp(ctk.CTkFrame):
             alignment=values["alignment"],
             image_scale=values["image_scale"],
             image_y=values["image_y"],
+            start_frame=start_frame,
+            end_frame=end_frame,
+            encoder=values.get("encoder", "h264"),
+            crf=values.get("crf", 23),
+            preset=values.get("preset", "medium"),
+            max_bitrate=values.get("max_bitrate"),
         )
 
     def _on_source_change(self, path: str):
@@ -397,7 +422,7 @@ class CoverflowApp(ctk.CTkFrame):
 
         if success:
             output = self.video_frame.get_values()["output"]
-            messagebox.showinfo("Success", f"Video saved to:\n{output}")
+            SuccessDialog(self.master, output)
         elif error and "Cancelled" not in error:
             messagebox.showerror("Error", f"Video generation failed:\n{error}")
 

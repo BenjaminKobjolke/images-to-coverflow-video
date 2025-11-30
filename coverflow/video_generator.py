@@ -5,6 +5,7 @@ import threading
 from typing import Callable, List, Optional
 
 import cv2
+import imageio
 import numpy as np
 
 from .config import Config
@@ -49,12 +50,24 @@ class VideoGenerator:
             total_frames += transition_frames
         total_duration = total_frames / self.config.fps
 
+        # Calculate frame range for rendering
+        start_frame = self.config.start_frame if self.config.start_frame is not None else 0
+        end_frame = self.config.end_frame if self.config.end_frame is not None else total_frames - 1
+
+        # Clamp values to valid range
+        start_frame = max(0, min(start_frame, total_frames - 1))
+        end_frame = max(start_frame, min(end_frame, total_frames - 1))
+
+        frames_to_render = end_frame - start_frame + 1
+
         # Statistics mode: just print stats and return
         if self.config.statistics:
             print("Statistics:")
             print(f"  Images: {num_images}")
             print(f"  Total frames: {total_frames}")
             print(f"  Duration: {total_duration:.2f} seconds")
+            if self.config.start_frame is not None or self.config.end_frame is not None:
+                print(f"  Render range: {start_frame} - {end_frame} ({frames_to_render} frames)")
             return
 
         # Preview mode: render single frame as preview.jpg
@@ -92,27 +105,53 @@ class VideoGenerator:
             print(f"Preview saved to 'preview.jpg' (frame {target_frame}, image {img_idx + 1}/{num_images})")
             return
 
-        # Initialize video writer
-        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-        out = cv2.VideoWriter(
-            self.config.output,
-            fourcc,
-            self.config.fps,
-            (self.config.width, self.config.height),
-        )
+        # Build FFmpeg output parameters
+        output_params = ['-preset', self.config.preset, '-crf', str(self.config.crf)]
+        if self.config.max_bitrate:
+            bitrate_val = str(self.config.max_bitrate)
+            # Skip if value is 0 (no limit)
+            try:
+                if float(bitrate_val.rstrip('kKmM')) == 0:
+                    bitrate_val = None
+            except ValueError:
+                pass
+            if bitrate_val:
+                # Append 'k' if no unit suffix (user entered raw number)
+                if bitrate_val[-1].isdigit():
+                    bitrate_val += 'k'
+                output_params += ['-maxrate', bitrate_val, '-bufsize', bitrate_val]
 
-        if not out.isOpened():
-            print(f"Error: Could not create video file '{self.config.output}'")
+        # Select codec based on encoder setting
+        codec = 'libx264' if self.config.encoder == 'h264' else 'libx265'
+
+        # Initialize imageio video writer
+        try:
+            out = imageio.get_writer(
+                self.config.output,
+                fps=self.config.fps,
+                codec=codec,
+                output_params=output_params
+            )
+        except Exception as e:
+            print(f"Error: Could not create video file '{self.config.output}': {e}")
             sys.exit(1)
 
-        frame_count = 0
+        absolute_frame = 0  # Track position in full video
+        frames_written = 0  # Track actually written frames
+        generation_complete = False
 
-        print("Generating video...")
+        if start_frame > 0 or end_frame < total_frames - 1:
+            print(f"Generating video (frames {start_frame} - {end_frame})...")
+        else:
+            print("Generating video...")
 
         for img_idx in range(num_images):
+            if generation_complete:
+                break
+
             # Check for cancellation
             if cancel_flag and cancel_flag.is_set():
-                out.release()
+                out.close()
                 print("Video generation cancelled.")
                 return
 
@@ -121,17 +160,29 @@ class VideoGenerator:
             for frame in range(hold_frames):
                 # Check for cancellation
                 if cancel_flag and cancel_flag.is_set():
-                    out.release()
+                    out.close()
                     print("Video generation cancelled.")
                     return
 
-                canvas = self.renderer.render_frame(images, img_idx, 0)
-                out.write(canvas)
-                frame_count += 1
+                # Only write frames within the specified range
+                if start_frame <= absolute_frame <= end_frame:
+                    canvas = self.renderer.render_frame(images, img_idx, 0)
+                    out.append_data(cv2.cvtColor(canvas, cv2.COLOR_BGR2RGB))
+                    frames_written += 1
 
-                # Report progress
-                if progress_callback:
-                    progress_callback(frame_count, total_frames)
+                    # Report progress based on frames to render
+                    if progress_callback:
+                        progress_callback(frames_written, frames_to_render)
+
+                absolute_frame += 1
+
+                # Stop if we've passed the end frame
+                if absolute_frame > end_frame:
+                    generation_complete = True
+                    break
+
+            if generation_complete:
+                break
 
             # Transition phase - animate to next image
             if img_idx < num_images - 1:
@@ -139,45 +190,62 @@ class VideoGenerator:
                 for frame in range(transition_frames):
                     # Check for cancellation
                     if cancel_flag and cancel_flag.is_set():
-                        out.release()
+                        out.close()
                         print("Video generation cancelled.")
                         return
 
+                    # Only write frames within the specified range
+                    if start_frame <= absolute_frame <= end_frame:
+                        # Calculate offset (0 to 1)
+                        offset = frame / transition_frames
+                        # Use easing function for smooth animation
+                        offset = ease_in_out_cubic(offset)
+
+                        canvas = self.renderer.render_frame(images, img_idx, offset)
+                        out.append_data(cv2.cvtColor(canvas, cv2.COLOR_BGR2RGB))
+                        frames_written += 1
+
+                        # Report progress
+                        if progress_callback:
+                            progress_callback(frames_written, frames_to_render)
+
+                    absolute_frame += 1
+
+                    # Stop if we've passed the end frame
+                    if absolute_frame > end_frame:
+                        generation_complete = True
+                        break
+
+        # Loop transition - animate from last image back to first
+        if self.config.loop and not generation_complete:
+            print(f"  Processing loop transition (back to image 1)")
+            for frame in range(transition_frames):
+                # Check for cancellation
+                if cancel_flag and cancel_flag.is_set():
+                    out.close()
+                    print("Video generation cancelled.")
+                    return
+
+                # Only write frames within the specified range
+                if start_frame <= absolute_frame <= end_frame:
                     # Calculate offset (0 to 1)
                     offset = frame / transition_frames
                     # Use easing function for smooth animation
                     offset = ease_in_out_cubic(offset)
 
-                    canvas = self.renderer.render_frame(images, img_idx, offset)
-                    out.write(canvas)
-                    frame_count += 1
+                    canvas = self.renderer.render_frame(images, num_images - 1, offset)
+                    out.append_data(cv2.cvtColor(canvas, cv2.COLOR_BGR2RGB))
+                    frames_written += 1
 
                     # Report progress
                     if progress_callback:
-                        progress_callback(frame_count, total_frames)
+                        progress_callback(frames_written, frames_to_render)
 
-        # Loop transition - animate from last image back to first
-        if self.config.loop:
-            print(f"  Processing loop transition (back to image 1)")
-            for frame in range(transition_frames):
-                # Check for cancellation
-                if cancel_flag and cancel_flag.is_set():
-                    out.release()
-                    print("Video generation cancelled.")
-                    return
+                absolute_frame += 1
 
-                # Calculate offset (0 to 1)
-                offset = frame / transition_frames
-                # Use easing function for smooth animation
-                offset = ease_in_out_cubic(offset)
+                # Stop if we've passed the end frame
+                if absolute_frame > end_frame:
+                    break
 
-                canvas = self.renderer.render_frame(images, num_images - 1, offset)
-                out.write(canvas)
-                frame_count += 1
-
-                # Report progress
-                if progress_callback:
-                    progress_callback(frame_count, total_frames)
-
-        out.release()
-        print(f"Video saved to '{self.config.output}' ({frame_count} frames)")
+        out.close()
+        print(f"Video saved to '{self.config.output}' ({frames_written} frames)")

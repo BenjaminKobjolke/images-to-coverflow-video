@@ -57,7 +57,16 @@ class EffectsFrame(ctk.CTkFrame):
             text="Repeat (loop images for seamless sides)",
             variable=self.repeat_var,
         )
-        self.repeat_check.pack(anchor="w", padx=10, pady=(5, 10))
+        self.repeat_check.pack(anchor="w", padx=10, pady=(5, 2))
+
+        # Loop checkbox
+        self.loop_var = ctk.BooleanVar(value=False)
+        self.loop_check = ctk.CTkCheckBox(
+            self,
+            text="Loop (transition back to first image)",
+            variable=self.loop_var,
+        )
+        self.loop_check.pack(anchor="w", padx=10, pady=(2, 10))
 
     def get_values(self) -> dict:
         """Get all effects values."""
@@ -67,6 +76,7 @@ class EffectsFrame(ctk.CTkFrame):
             "reflection": self.reflection_slider.get(),
             "reflection_length": self.reflection_length_slider.get(),
             "repeat": self.repeat_var.get(),
+            "loop": self.loop_var.get(),
         }
 
     def set_values(self, values: dict):
@@ -79,3 +89,5 @@ class EffectsFrame(ctk.CTkFrame):
             self.reflection_length_slider.set(values["reflection_length"])
         if "repeat" in values:
             self.repeat_var.set(values["repeat"])
+        if "loop" in values:
+            self.loop_var.set(values["loop"])

@@ -265,7 +265,8 @@ class CoverflowApp(ctk.CTkFrame):
             spacing=values["spacing"],
             reflection=values["reflection"],
             reflection_length=values["reflection_length"],
-            repeat=values["repeat"],
+            repeat=values["repeat"] or values.get("loop", False),  # loop requires repeat
+            loop=values.get("loop", False),
             mode=values["mode"],
             alignment=values["alignment"],
             image_scale=values["image_scale"],

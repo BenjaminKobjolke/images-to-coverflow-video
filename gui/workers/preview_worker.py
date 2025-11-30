@@ -94,4 +94,8 @@ def calculate_total_frames(config: Config, num_images: int) -> int:
     """
     transition_frames = int(config.transition * config.fps)
     hold_frames = int(config.hold * config.fps)
-    return num_images * hold_frames + (num_images - 1) * transition_frames
+    total = num_images * hold_frames + (num_images - 1) * transition_frames
+    # Add extra transition for loop (last to first)
+    if config.loop:
+        total += transition_frames
+    return total

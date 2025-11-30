@@ -44,6 +44,9 @@ class VideoGenerator:
 
         # Calculate total frames: hold for each image + transitions between images
         total_frames = num_images * hold_frames + (num_images - 1) * transition_frames
+        # Add extra transition for loop (last to first)
+        if self.config.loop:
+            total_frames += transition_frames
         total_duration = total_frames / self.config.fps
 
         # Statistics mode: just print stats and return
@@ -152,6 +155,29 @@ class VideoGenerator:
                     # Report progress
                     if progress_callback:
                         progress_callback(frame_count, total_frames)
+
+        # Loop transition - animate from last image back to first
+        if self.config.loop:
+            print(f"  Processing loop transition (back to image 1)")
+            for frame in range(transition_frames):
+                # Check for cancellation
+                if cancel_flag and cancel_flag.is_set():
+                    out.release()
+                    print("Video generation cancelled.")
+                    return
+
+                # Calculate offset (0 to 1)
+                offset = frame / transition_frames
+                # Use easing function for smooth animation
+                offset = ease_in_out_cubic(offset)
+
+                canvas = self.renderer.render_frame(images, num_images - 1, offset)
+                out.write(canvas)
+                frame_count += 1
+
+                # Report progress
+                if progress_callback:
+                    progress_callback(frame_count, total_frames)
 
         out.release()
         print(f"Video saved to '{self.config.output}' ({frame_count} frames)")

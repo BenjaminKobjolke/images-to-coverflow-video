@@ -86,6 +86,11 @@ def parse_args():
         help="Loop images so there's always content on both sides"
     )
     parser.add_argument(
+        "--loop",
+        action="store_true",
+        help="Add transition from last to first image for seamless video looping"
+    )
+    parser.add_argument(
         "--mode",
         choices=["arc", "flat"],
         default="arc",
@@ -164,7 +169,8 @@ def main():
         spacing=args.spacing,
         reflection=args.reflection,
         reflection_length=args.reflection_length,
-        repeat=args.repeat,
+        repeat=args.repeat or args.loop,  # loop requires repeat for proper visual wrapping
+        loop=args.loop,
         mode=args.mode,
         alignment=args.alignment,
         image_scale=args.image_scale,

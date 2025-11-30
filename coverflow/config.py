@@ -23,6 +23,7 @@ class Config:
     reflection: float = 0.2  # Reflection opacity (0 = no reflection, 1 = full opacity)
     reflection_length: float = 0.5  # Fraction of image height to show in reflection (0.0-1.0)
     repeat: bool = False  # Loop images so there's always content on both sides
+    loop: bool = False  # Add transition from last to first image for seamless video looping
     mode: str = "arc"  # "arc" or "flat"
     alignment: str = "center"  # "center", "top", or "bottom"
     image_scale: float = 0.6  # Maximum image size as fraction of canvas (0.0-1.0)

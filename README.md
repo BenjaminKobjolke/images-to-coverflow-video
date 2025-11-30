@@ -25,6 +25,7 @@ python main.py --source input/ --width 800 --height 600 --transition 2 --hold 2
 | `--hold` | 2.0 | Hold duration for each image in seconds |
 | `--fps` | 30 | Frames per second |
 | `--output` | output.mp4 | Output video file path |
+| `--background` | (none) | Background image file (optional) |
 
 ## Supported Image Formats
 

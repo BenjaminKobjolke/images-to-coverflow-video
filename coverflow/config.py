@@ -1,6 +1,7 @@
 """Configuration dataclass for coverflow video generation."""
 
 from dataclasses import dataclass
+from typing import Optional
 
 
 @dataclass
@@ -14,3 +15,12 @@ class Config:
     hold: float
     fps: int
     output: str
+    background: Optional[str] = None
+    perspective: float = 0.3
+    side_scale: float = 0.8  # Scale factor per position (0.8 = each image is 80% of previous)
+    visible_range: int = 3  # Number of images visible on each side
+    spacing: float = 0.35  # Horizontal spacing between images (lower = closer together)
+    reflection: float = 0.2  # Reflection opacity (0 = no reflection, 1 = full opacity)
+    repeat: bool = False  # Loop images so there's always content on both sides
+    mode: str = "arc"  # "arc" or "flat"
+    alignment: str = "center"  # "center", "top", or "bottom"

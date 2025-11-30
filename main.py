@@ -41,6 +41,56 @@ def parse_args():
     parser.add_argument(
         "--output", default="output.mp4", help="Output video file (default: output.mp4)"
     )
+    parser.add_argument(
+        "--background", default=None, help="Background image file (optional)"
+    )
+    parser.add_argument(
+        "--perspective",
+        type=float,
+        default=0.3,
+        help="Perspective/rotation amount for side images (0 = no rotation, default: 0.3)"
+    )
+    parser.add_argument(
+        "--side-scale",
+        type=float,
+        default=0.8,
+        help="Scale factor for each position from center (0.7 = each image is 70%% of previous, 1.0 = same size, default: 0.8)"
+    )
+    parser.add_argument(
+        "--visible-range",
+        type=int,
+        default=3,
+        help="Number of images visible on each side of center (default: 3)"
+    )
+    parser.add_argument(
+        "--spacing",
+        type=float,
+        default=0.35,
+        help="Horizontal spacing between images (lower = closer together, default: 0.35)"
+    )
+    parser.add_argument(
+        "--reflection",
+        type=float,
+        default=0.2,
+        help="Reflection opacity (0 = no reflection, 1 = full opacity, default: 0.2)"
+    )
+    parser.add_argument(
+        "--repeat",
+        action="store_true",
+        help="Loop images so there's always content on both sides"
+    )
+    parser.add_argument(
+        "--mode",
+        choices=["arc", "flat"],
+        default="arc",
+        help="Layout mode: 'arc' (circular) or 'flat' (straight row)"
+    )
+    parser.add_argument(
+        "--alignment",
+        choices=["center", "top", "bottom"],
+        default="center",
+        help="Vertical alignment: 'center', 'top', or 'bottom' (default: center)"
+    )
     return parser.parse_args()
 
 
@@ -54,6 +104,16 @@ def main():
     print(f"  Hold: {args.hold}s")
     print(f"  FPS: {args.fps}")
     print(f"  Output: {args.output}")
+    if args.background:
+        print(f"  Background: {args.background}")
+    print(f"  Perspective: {args.perspective}")
+    print(f"  Side scale: {args.side_scale}")
+    print(f"  Visible range: {args.visible_range}")
+    print(f"  Spacing: {args.spacing}")
+    print(f"  Reflection: {args.reflection}")
+    print(f"  Repeat: {args.repeat}")
+    print(f"  Mode: {args.mode}")
+    print(f"  Alignment: {args.alignment}")
     print()
 
     # Create configuration
@@ -65,6 +125,15 @@ def main():
         hold=args.hold,
         fps=args.fps,
         output=args.output,
+        background=args.background,
+        perspective=args.perspective,
+        side_scale=args.side_scale,
+        visible_range=args.visible_range,
+        spacing=args.spacing,
+        reflection=args.reflection,
+        repeat=args.repeat,
+        mode=args.mode,
+        alignment=args.alignment,
     )
 
     # Load images

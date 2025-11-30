@@ -21,7 +21,7 @@ class VideoGenerator:
             config: Video generation configuration.
         """
         self.config = config
-        self.renderer = CoverflowRenderer(config.width, config.height)
+        self.renderer = CoverflowRenderer(config)
 
     def generate(self, images: List[np.ndarray]) -> None:
         """Generate the coverflow video.

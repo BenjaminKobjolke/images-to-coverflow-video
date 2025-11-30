@@ -29,7 +29,9 @@ class ImageTransformer:
 
     @staticmethod
     def apply_perspective(
-        img: np.ndarray, angle: float, canvas_width: int, canvas_height: int
+        img: np.ndarray, angle: float, canvas_width: int, canvas_height: int,
+        perspective: float = 0.3, side_scale: float = 0.3, spacing: float = 0.35,
+        mode: str = "arc"
     ) -> Tuple[Optional[np.ndarray], int, int]:
         """Apply a 3D perspective transform to simulate coverflow effect.
 
@@ -41,6 +43,10 @@ class ImageTransformer:
             angle: Position angle from -1.0 (left) to 0.0 (center) to 1.0 (right).
             canvas_width: Width of the target canvas.
             canvas_height: Height of the target canvas.
+            perspective: Amount of perspective distortion (0 = none, default: 0.3).
+            side_scale: How much side images shrink (0 = same size, default: 0.3).
+            spacing: Horizontal spacing between images (default: 0.35).
+            mode: Layout mode - 'arc' (circular) or 'flat' (straight row).
 
         Returns:
             Tuple of (transformed image or None, x_offset, y_offset).
@@ -48,8 +54,9 @@ class ImageTransformer:
         h, w = img.shape[:2]
         abs_angle = abs(angle)
 
-        # Scale factor based on distance from center
-        scale = 1.0 - abs_angle * 0.3
+        # Scale factor based on distance from center (multiplicative)
+        # side_scale=0.7 means each position is 70% the size of the previous
+        scale = side_scale ** abs_angle if side_scale > 0 else 1.0
 
         # Scale both dimensions uniformly first
         new_w = int(w * scale)
@@ -71,9 +78,16 @@ class ImageTransformer:
             y_offset = int((canvas_height - new_h) / 2)
             return img_scaled, x_offset, y_offset
 
+        # For flat mode: skip perspective distortion, just use scaled image
+        # Use canvas_width for spacing so images spread out evenly (not bunch up)
+        if mode == "flat":
+            x_offset = int((canvas_width - new_w) / 2 + angle * canvas_width * spacing)
+            y_offset = int((canvas_height - new_h) / 2)
+            return img_scaled, x_offset, y_offset
+
         # Calculate perspective distortion for far edge
         # Far edge is smaller in BOTH dimensions (proportionally)
-        perspective_amount = abs_angle * 0.3  # How much smaller the far edge is
+        perspective_amount = abs_angle * perspective  # How much smaller the far edge is
         h_inset = int(new_w * perspective_amount)  # Horizontal inset
         v_inset = int(new_h * perspective_amount / 2)  # Vertical inset (centered)
 
@@ -110,39 +124,72 @@ class ImageTransformer:
             borderValue=(0, 0, 0, 0)
         )
 
-        # Calculate position on canvas
-        x_offset = int((canvas_width - new_w) / 2 + angle * canvas_width * 0.35)
+        # Calculate position on canvas (arc mode - spacing scales with canvas, creates convergence)
+        x_offset = int((canvas_width - new_w) / 2 + angle * canvas_width * spacing * scale)
         y_offset = int((canvas_height - new_h) / 2)
 
         return transformed, x_offset, y_offset
 
-    @staticmethod
-    def create_reflection(img: np.ndarray, alpha: float = 0.3) -> np.ndarray:
+    def create_reflection(
+        self,
+        img: np.ndarray,
+        position: float,
+        canvas_width: int,
+        canvas_height: int,
+        alpha: float = 0.3,
+        perspective: float = 0.3,
+        side_scale: float = 0.3,
+        spacing: float = 0.35,
+        mode: str = "arc",
+    ) -> Tuple[Optional[np.ndarray], int, int]:
         """Create a reflection effect below the image.
 
+        Applies perspective transform first, then flips vertically,
+        ensuring the reflection has identical perspective to the original.
+
         Args:
-            img: Input image.
-            alpha: Starting opacity of the reflection.
+            img: Input image (BGR or BGRA).
+            position: Perspective position (-1.0 to 1.0).
+            canvas_width: Canvas width for perspective calculation.
+            canvas_height: Canvas height for perspective calculation.
+            alpha: Overall opacity of the reflection (0.0 to 1.0).
+            perspective: Amount of perspective distortion (0 = none, default: 0.3).
+            side_scale: How much side images shrink (0 = same size, default: 0.3).
+            spacing: Horizontal spacing between images (default: 0.35).
+            mode: Layout mode - 'arc' (circular) or 'flat' (straight row).
 
         Returns:
-            Reflected image with gradient fade.
+            Tuple of (reflected image with gradient fade, x_offset, y_offset).
         """
-        h, w = img.shape[:2]
+        # Step 1: Apply perspective transform FIRST (normal mode)
+        transformed, x_offset, y_offset = self.apply_perspective(
+            img, position, canvas_width, canvas_height, perspective, side_scale, spacing, mode
+        )
 
-        # Flip vertically
-        reflected = cv2.flip(img, 0)
+        if transformed is None:
+            return None, 0, 0
 
-        # Create gradient mask for fade effect
-        gradient = np.linspace(alpha, 0, h).reshape(-1, 1)
+        # Step 2: THEN flip the perspectived image vertically
+        transformed = cv2.flip(transformed, 0)
+
+        h, w = transformed.shape[:2]
+
+        # Step 3: Apply gradient fade to alpha channel
+        gradient = np.linspace(1.0, 0, h).reshape(-1, 1)
         gradient = np.tile(gradient, (1, w))
 
-        if len(reflected.shape) == 3:
-            gradient = np.dstack([gradient] * reflected.shape[2])
+        if transformed.shape[2] == 4:
+            # For BGRA: keep RGB intact, apply gradient to alpha only
+            rgb = transformed[:, :, :3]
+            alpha_channel = transformed[:, :, 3].astype(np.float32)
+            alpha_channel = alpha_channel * gradient * alpha
+            transformed = np.dstack([rgb, alpha_channel.astype(np.uint8)])
+        else:
+            # For BGR: convert to BGRA and apply gradient to alpha
+            alpha_channel = (gradient * alpha * 255).astype(np.uint8)
+            transformed = np.dstack([transformed, alpha_channel])
 
-        # Apply gradient
-        reflected = (reflected * gradient).astype(np.uint8)
-
-        return reflected
+        return transformed, x_offset, y_offset
 
     @staticmethod
     def blend_onto_canvas(

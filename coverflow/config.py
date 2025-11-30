@@ -1,7 +1,7 @@
 """Configuration dataclass for coverflow video generation."""
 
-from dataclasses import dataclass
-from typing import Optional
+from dataclasses import asdict, dataclass, fields
+from typing import Any, Dict, Optional
 
 
 @dataclass
@@ -29,3 +29,22 @@ class Config:
     image_y: float = 0.5  # Vertical position as fraction of canvas height (0=top, 0.5=center, 1=bottom)
     statistics: bool = False  # Only output statistics, don't generate video
     preview: Optional[float] = None  # Preview frame (int=frame number, float=seconds)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert config to dictionary for serialization."""
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "Config":
+        """Create config from dictionary.
+
+        Args:
+            data: Dictionary with config values.
+
+        Returns:
+            Config instance.
+        """
+        # Only use fields that exist in the dataclass
+        valid_fields = {f.name for f in fields(cls)}
+        filtered = {k: v for k, v in data.items() if k in valid_fields}
+        return cls(**filtered)

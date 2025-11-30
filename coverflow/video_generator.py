@@ -1,7 +1,8 @@
 """Video generation for coverflow effect."""
 
 import sys
-from typing import List
+import threading
+from typing import Callable, List, Optional
 
 import cv2
 import numpy as np
@@ -23,11 +24,18 @@ class VideoGenerator:
         self.config = config
         self.renderer = CoverflowRenderer(config)
 
-    def generate(self, images: List[np.ndarray]) -> None:
+    def generate(
+        self,
+        images: List[np.ndarray],
+        progress_callback: Optional[Callable[[int, int], None]] = None,
+        cancel_flag: Optional[threading.Event] = None,
+    ) -> None:
         """Generate the coverflow video.
 
         Args:
             images: List of images to include in the video.
+            progress_callback: Optional callback for progress updates (current, total).
+            cancel_flag: Optional threading event to signal cancellation.
         """
         # Calculate frame counts
         transition_frames = int(self.config.transition * self.config.fps)
@@ -99,17 +107,39 @@ class VideoGenerator:
         print("Generating video...")
 
         for img_idx in range(num_images):
+            # Check for cancellation
+            if cancel_flag and cancel_flag.is_set():
+                out.release()
+                print("Video generation cancelled.")
+                return
+
             # Hold phase - keep current image centered
             print(f"  Processing image {img_idx + 1}/{num_images} - hold phase")
             for frame in range(hold_frames):
+                # Check for cancellation
+                if cancel_flag and cancel_flag.is_set():
+                    out.release()
+                    print("Video generation cancelled.")
+                    return
+
                 canvas = self.renderer.render_frame(images, img_idx, 0)
                 out.write(canvas)
                 frame_count += 1
+
+                # Report progress
+                if progress_callback:
+                    progress_callback(frame_count, total_frames)
 
             # Transition phase - animate to next image
             if img_idx < num_images - 1:
                 print(f"  Processing image {img_idx + 1}/{num_images} - transition phase")
                 for frame in range(transition_frames):
+                    # Check for cancellation
+                    if cancel_flag and cancel_flag.is_set():
+                        out.release()
+                        print("Video generation cancelled.")
+                        return
+
                     # Calculate offset (0 to 1)
                     offset = frame / transition_frames
                     # Use easing function for smooth animation
@@ -118,6 +148,10 @@ class VideoGenerator:
                     canvas = self.renderer.render_frame(images, img_idx, offset)
                     out.write(canvas)
                     frame_count += 1
+
+                    # Report progress
+                    if progress_callback:
+                        progress_callback(frame_count, total_frames)
 
         out.release()
         print(f"Video saved to '{self.config.output}' ({frame_count} frames)")

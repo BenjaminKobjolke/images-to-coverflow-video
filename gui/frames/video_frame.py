@@ -2,6 +2,7 @@
 
 import customtkinter as ctk
 from ..widgets import LabeledEntry, LabeledSlider, FilePicker
+from ..fonts import get_font
 
 
 class VideoFrame(ctk.CTkFrame):
@@ -13,7 +14,7 @@ class VideoFrame(ctk.CTkFrame):
 
         # Title
         self.title_label = ctk.CTkLabel(
-            self, text="Video Output", font=ctk.CTkFont(size=14, weight="bold")
+            self, text="Video Output", font=get_font(weight="bold")
         )
         self.title_label.pack(anchor="w", padx=10, pady=(10, 5))
 
@@ -44,7 +45,7 @@ class VideoFrame(ctk.CTkFrame):
             self,
             text="Width and height should be divisible by 16",
             text_color="orange",
-            font=ctk.CTkFont(size=11),
+            font=get_font(size_offset=-3),
         )
 
         # Hook up validation callbacks
@@ -74,14 +75,14 @@ class VideoFrame(ctk.CTkFrame):
 
         # Encoding section title
         self.encoding_label = ctk.CTkLabel(
-            self, text="Encoding", font=ctk.CTkFont(size=14, weight="bold")
+            self, text="Encoding", font=get_font(weight="bold")
         )
         self.encoding_label.pack(anchor="w", padx=10, pady=(10, 5))
 
         # Encoder dropdown
         encoder_frame = ctk.CTkFrame(self, fg_color="transparent")
         encoder_frame.pack(fill="x", padx=10, pady=2)
-        ctk.CTkLabel(encoder_frame, text="Encoder", width=80, anchor="w").pack(side="left")
+        ctk.CTkLabel(encoder_frame, text="Encoder", width=80, anchor="w", font=get_font()).pack(side="left")
         self.encoder_var = ctk.StringVar(value="h264")
         self.encoder_menu = ctk.CTkOptionMenu(
             encoder_frame,
@@ -94,7 +95,7 @@ class VideoFrame(ctk.CTkFrame):
         # Preset dropdown
         preset_frame = ctk.CTkFrame(self, fg_color="transparent")
         preset_frame.pack(fill="x", padx=10, pady=2)
-        ctk.CTkLabel(preset_frame, text="Preset", width=80, anchor="w").pack(side="left")
+        ctk.CTkLabel(preset_frame, text="Preset", width=80, anchor="w", font=get_font()).pack(side="left")
         self.preset_var = ctk.StringVar(value="medium")
         self.preset_menu = ctk.CTkOptionMenu(
             preset_frame,
@@ -118,7 +119,7 @@ class VideoFrame(ctk.CTkFrame):
         # Max Bitrate entry (optional) - uses plain text entry for string values like "5000k"
         bitrate_frame = ctk.CTkFrame(self, fg_color="transparent")
         bitrate_frame.pack(fill="x", padx=10, pady=2)
-        ctk.CTkLabel(bitrate_frame, text="Max Bitrate", width=120, anchor="w").pack(side="left")
+        ctk.CTkLabel(bitrate_frame, text="Max Bitrate", width=120, anchor="w", font=get_font()).pack(side="left")
         self.max_bitrate_var = ctk.StringVar(value="")
         self.max_bitrate_entry = ctk.CTkEntry(
             bitrate_frame,

@@ -6,6 +6,8 @@ import subprocess
 from pathlib import Path
 import customtkinter as ctk
 
+from ..fonts import get_font
+
 
 def open_file(filepath: str):
     """Open file with default application."""
@@ -67,7 +69,7 @@ class SuccessDialog(ctk.CTkToplevel):
         success_label = ctk.CTkLabel(
             self,
             text="Video Generated Successfully!",
-            font=ctk.CTkFont(size=16, weight="bold"),
+            font=get_font(size_offset=2, weight="bold"),
         )
         success_label.grid(row=0, column=0, padx=20, pady=(20, 10))
 
@@ -76,6 +78,7 @@ class SuccessDialog(ctk.CTkToplevel):
             self,
             text=f"Saved to: {filepath}",
             wraplength=410,
+            font=get_font(),
         )
         filepath_label.grid(row=1, column=0, padx=20, pady=5)
 
@@ -89,6 +92,7 @@ class SuccessDialog(ctk.CTkToplevel):
             text="Open Video",
             width=100,
             command=self._on_open,
+            font=get_font(),
         )
         open_btn.pack(side="left", padx=5)
 
@@ -98,6 +102,7 @@ class SuccessDialog(ctk.CTkToplevel):
             text="Open Folder",
             width=100,
             command=self._on_open_folder,
+            font=get_font(),
         )
         folder_btn.pack(side="left", padx=5)
 
@@ -108,6 +113,7 @@ class SuccessDialog(ctk.CTkToplevel):
             width=80,
             fg_color="gray",
             command=self._on_close,
+            font=get_font(),
         )
         close_btn.pack(side="left", padx=5)
 

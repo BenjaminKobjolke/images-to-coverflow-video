@@ -2,6 +2,7 @@
 
 import customtkinter as ctk
 from ..widgets import LabeledSlider, FilePicker
+from ..fonts import get_font
 
 
 class EffectsFrame(ctk.CTkFrame):
@@ -13,7 +14,7 @@ class EffectsFrame(ctk.CTkFrame):
 
         # Title
         self.title_label = ctk.CTkLabel(
-            self, text="Effects", font=ctk.CTkFont(size=14, weight="bold")
+            self, text="Effects", font=get_font(weight="bold")
         )
         self.title_label.pack(anchor="w", padx=10, pady=(10, 5))
 

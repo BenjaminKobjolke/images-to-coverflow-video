@@ -2,6 +2,7 @@
 
 import customtkinter as ctk
 from ..widgets import LabeledSlider
+from ..fonts import get_font
 
 
 class TransformFrame(ctk.CTkFrame):
@@ -13,7 +14,7 @@ class TransformFrame(ctk.CTkFrame):
 
         # Title
         self.title_label = ctk.CTkLabel(
-            self, text="3D Effect", font=ctk.CTkFont(size=14, weight="bold")
+            self, text="3D Effect", font=get_font(weight="bold")
         )
         self.title_label.pack(anchor="w", padx=10, pady=(10, 5))
 

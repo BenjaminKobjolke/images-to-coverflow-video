@@ -3,6 +3,8 @@
 from typing import Callable, Optional
 import customtkinter as ctk
 
+from ..fonts import get_font
+
 
 class ProgressDialog(ctk.CTkToplevel):
     """Modal progress dialog for long-running operations."""
@@ -46,7 +48,7 @@ class ProgressDialog(ctk.CTkToplevel):
         self.grid_columnconfigure(0, weight=1)
 
         # Status label
-        self.status_label = ctk.CTkLabel(self, text="Initializing...")
+        self.status_label = ctk.CTkLabel(self, text="Initializing...", font=get_font())
         self.status_label.grid(row=0, column=0, padx=20, pady=(20, 10), sticky="w")
 
         # Progress bar
@@ -55,12 +57,12 @@ class ProgressDialog(ctk.CTkToplevel):
         self.progress_bar.set(0)
 
         # Frame/percentage label
-        self.detail_label = ctk.CTkLabel(self, text="0%")
+        self.detail_label = ctk.CTkLabel(self, text="0%", font=get_font())
         self.detail_label.grid(row=2, column=0, padx=20, pady=5)
 
         # Cancel button
         self.cancel_btn = ctk.CTkButton(
-            self, text="Cancel", width=100, command=self._on_cancel_click
+            self, text="Cancel", width=100, command=self._on_cancel_click, font=get_font()
         )
         self.cancel_btn.grid(row=3, column=0, pady=(10, 20))
 

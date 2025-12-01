@@ -4,6 +4,7 @@ from typing import Callable, Optional
 import os
 import customtkinter as ctk
 from ..widgets import FolderPicker
+from ..fonts import get_font
 
 
 class SourceFrame(ctk.CTkFrame):
@@ -27,7 +28,7 @@ class SourceFrame(ctk.CTkFrame):
 
         # Title
         self.title_label = ctk.CTkLabel(
-            self, text="Source", font=ctk.CTkFont(size=14, weight="bold")
+            self, text="Source", font=get_font(weight="bold")
         )
         self.title_label.pack(anchor="w", padx=10, pady=(10, 5))
 
@@ -40,7 +41,7 @@ class SourceFrame(ctk.CTkFrame):
         self.folder_picker.pack(fill="x", padx=10, pady=5)
 
         # Image count display
-        self.count_label = ctk.CTkLabel(self, text="No folder selected")
+        self.count_label = ctk.CTkLabel(self, text="No folder selected", font=get_font())
         self.count_label.pack(anchor="w", padx=10, pady=(0, 10))
 
     def _on_folder_change(self, path: str):

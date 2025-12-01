@@ -3,6 +3,8 @@
 from typing import Callable, Optional, Union
 import customtkinter as ctk
 
+from ..fonts import get_font
+
 
 class LabeledEntry(ctk.CTkFrame):
     """A numeric entry with a label and validation."""
@@ -44,12 +46,12 @@ class LabeledEntry(ctk.CTkFrame):
         self.grid_columnconfigure(1, weight=1)
 
         # Label
-        self.label = ctk.CTkLabel(self, text=label, width=120, anchor="w")
+        self.label = ctk.CTkLabel(self, text=label, width=120, anchor="w", font=get_font())
         self.label.grid(row=0, column=0, padx=(0, 10), sticky="w")
 
         # Entry
         self.var = ctk.StringVar(value=str(default))
-        self.entry = ctk.CTkEntry(self, textvariable=self.var, width=width)
+        self.entry = ctk.CTkEntry(self, textvariable=self.var, width=width, font=get_font())
         self.entry.grid(row=0, column=1, sticky="w")
 
         # Bind validation

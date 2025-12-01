@@ -69,6 +69,24 @@ def main():
     app = CoverflowApp(root, sidebar_columns=sidebar_columns)
     app.grid(row=0, column=0, sticky="nsew", padx=0, pady=0)
 
+    # Save window geometry on close
+    def on_close():
+        current_settings = load_settings()
+
+        # Check if maximized (Windows uses 'zoomed')
+        is_maximized = root.state() == 'zoomed'
+        current_settings["window_maximized"] = is_maximized
+
+        # Only save geometry if not maximized (preserve normal window size)
+        if not is_maximized:
+            current_settings["window_width"] = root.winfo_width()
+            current_settings["window_height"] = root.winfo_height()
+            current_settings["window_x"] = root.winfo_x()
+            current_settings["window_y"] = root.winfo_y()
+
+        save_settings(current_settings)
+        root.destroy()
+
     # Create menu bar (using tkinter Menu, attached to root)
     menubar = tk.Menu(root)
     root.config(menu=menubar)
@@ -78,9 +96,32 @@ def main():
     menubar.add_cascade(label="File", menu=file_menu)
     file_menu.add_command(label="New Project", command=app._on_new_project, accelerator="Ctrl+N")
     file_menu.add_command(label="Open Project...", command=app._on_open_project, accelerator="Ctrl+O")
+
+    # Recent Projects submenu
+    recent_menu = tk.Menu(file_menu, tearoff=0)
+    file_menu.add_cascade(label="Recent Projects", menu=recent_menu)
+
+    def populate_recent_menu():
+        recent_menu.delete(0, tk.END)
+        current_settings = load_settings()
+        recent_projects = current_settings.get("recent_projects", [])
+        if recent_projects:
+            for path in recent_projects:
+                recent_menu.add_command(
+                    label=path,
+                    command=lambda p=path: app._open_recent_project(p)
+                )
+        else:
+            recent_menu.add_command(label="(No recent projects)", state="disabled")
+
+    populate_recent_menu()
+    app.set_recent_menu(recent_menu, populate_recent_menu)
+
     file_menu.add_separator()
     file_menu.add_command(label="Save Project", command=app._on_save_project, accelerator="Ctrl+S")
     file_menu.add_command(label="Save Project As...", command=app._on_save_project_as, accelerator="Ctrl+Shift+S")
+    file_menu.add_separator()
+    file_menu.add_command(label="Exit", command=on_close, accelerator="Alt+F4")
 
     # Project menu
     project_menu = tk.Menu(menubar, tearoff=0)
@@ -97,24 +138,6 @@ def main():
     root.bind("<Control-o>", lambda e: app._on_open_project())
     root.bind("<Control-s>", lambda e: app._on_save_project())
     root.bind("<Control-Shift-s>", lambda e: app._on_save_project_as())
-
-    # Save window geometry on close
-    def on_close():
-        settings = load_settings()
-
-        # Check if maximized (Windows uses 'zoomed')
-        is_maximized = root.state() == 'zoomed'
-        settings["window_maximized"] = is_maximized
-
-        # Only save geometry if not maximized (preserve normal window size)
-        if not is_maximized:
-            settings["window_width"] = root.winfo_width()
-            settings["window_height"] = root.winfo_height()
-            settings["window_x"] = root.winfo_x()
-            settings["window_y"] = root.winfo_y()
-
-        save_settings(settings)
-        root.destroy()
 
     root.protocol("WM_DELETE_WINDOW", on_close)
 

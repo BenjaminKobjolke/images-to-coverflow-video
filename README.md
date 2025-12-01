@@ -47,6 +47,13 @@ python main.py --source input/ --encoder h265 --crf 23
 
 # Constrained quality (good quality with max file size)
 python main.py --source input/ --crf 20 --max-bitrate 10M
+
+# Various bitrate examples
+python main.py --source input/ --max-bitrate 5M      # 5 Megabits/sec - good for 720p
+python main.py --source input/ --max-bitrate 10M     # 10 Megabits/sec - good for 1080p
+python main.py --source input/ --max-bitrate 20M     # 20 Megabits/sec - high quality 1080p
+python main.py --source input/ --max-bitrate 50M     # 50 Megabits/sec - 4K quality
+python main.py --source input/ --max-bitrate 5000k   # Same as 5M (5000 kilobits)
 ```
 
 ## Options
@@ -82,6 +89,40 @@ python main.py --source input/ --crf 20 --max-bitrate 10M
 | `--crf` | 23 | Quality level (0-51, lower = better quality, larger file) |
 | `--preset` | medium | Encoding speed: `ultrafast`, `fast`, `medium`, `slow`, `veryslow` |
 | `--max-bitrate` | (none) | Maximum bitrate cap (e.g., `10M`, `5000k`) for constrained quality |
+
+## Encoding Guide
+
+### CRF (Constant Rate Factor)
+Controls quality. Lower = better quality, larger file.
+- **18-20**: High quality (visually lossless)
+- **21-23**: Good quality (default)
+- **24-28**: Medium quality
+- **29+**: Low quality
+
+### Preset
+Controls encoding speed vs compression efficiency.
+- **ultrafast**: Fastest encoding, largest file
+- **fast**: Quick encoding
+- **medium**: Balanced (default)
+- **slow**: Better compression, slower
+- **veryslow**: Best compression, slowest
+
+### Max Bitrate
+Caps the bitrate for predictable file sizes. Uses FFmpeg format:
+- **M** = Megabits/sec (e.g., `10M` = 10 Mbps)
+- **k** = Kilobits/sec (e.g., `5000k` = 5 Mbps)
+
+Recommended values:
+| Resolution | Bitrate |
+|------------|---------|
+| 720p | 5-10M |
+| 1080p | 10-20M |
+| 1440p | 20-35M |
+| 4K | 35-50M |
+
+### H.264 vs H.265
+- **H.264**: Wider compatibility, faster encoding
+- **H.265**: ~50% smaller files at same quality, slower encoding
 
 ## Supported Image Formats
 

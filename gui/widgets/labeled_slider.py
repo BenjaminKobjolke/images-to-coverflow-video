@@ -3,6 +3,8 @@
 from typing import Callable, Optional
 import customtkinter as ctk
 
+from ..fonts import get_font
+
 
 class LabeledSlider(ctk.CTkFrame):
     """A slider with a label and editable value input."""
@@ -47,7 +49,7 @@ class LabeledSlider(ctk.CTkFrame):
         self.grid_columnconfigure(2, weight=0)
 
         # Label
-        self.label = ctk.CTkLabel(self, text=label, width=120, anchor="w")
+        self.label = ctk.CTkLabel(self, text=label, width=120, anchor="w", font=get_font())
         self.label.grid(row=0, column=0, padx=(0, 10), sticky="w")
 
         # Slider
@@ -67,6 +69,7 @@ class LabeledSlider(ctk.CTkFrame):
             textvariable=self.value_var,
             width=60,
             justify="center",
+            font=get_font(),
         )
         self.value_entry.grid(row=0, column=2, padx=(10, 0), sticky="e")
 

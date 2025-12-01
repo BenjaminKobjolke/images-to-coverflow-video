@@ -4,6 +4,8 @@ from typing import Callable, Optional, Tuple
 from tkinter import filedialog
 import customtkinter as ctk
 
+from ..fonts import get_font
+
 
 class FilePicker(ctk.CTkFrame):
     """A file picker with label, entry, and browse button."""
@@ -40,17 +42,17 @@ class FilePicker(ctk.CTkFrame):
         self.grid_columnconfigure(2, weight=0)
 
         # Label
-        self.label = ctk.CTkLabel(self, text=label, width=120, anchor="w")
+        self.label = ctk.CTkLabel(self, text=label, width=120, anchor="w", font=get_font())
         self.label.grid(row=0, column=0, padx=(0, 10), sticky="w")
 
         # Entry
         self.var = ctk.StringVar(value=default)
-        self.entry = ctk.CTkEntry(self, textvariable=self.var)
+        self.entry = ctk.CTkEntry(self, textvariable=self.var, font=get_font())
         self.entry.grid(row=0, column=1, padx=5, sticky="ew")
 
         # Browse button
         self.browse_btn = ctk.CTkButton(
-            self, text="Browse", width=70, command=self._browse
+            self, text="Browse", width=70, command=self._browse, font=get_font()
         )
         self.browse_btn.grid(row=0, column=2, sticky="e")
 
@@ -107,17 +109,17 @@ class FolderPicker(ctk.CTkFrame):
         self.grid_columnconfigure(2, weight=0)
 
         # Label
-        self.label = ctk.CTkLabel(self, text=label, width=120, anchor="w")
+        self.label = ctk.CTkLabel(self, text=label, width=120, anchor="w", font=get_font())
         self.label.grid(row=0, column=0, padx=(0, 10), sticky="w")
 
         # Entry
         self.var = ctk.StringVar(value=default)
-        self.entry = ctk.CTkEntry(self, textvariable=self.var)
+        self.entry = ctk.CTkEntry(self, textvariable=self.var, font=get_font())
         self.entry.grid(row=0, column=1, padx=5, sticky="ew")
 
         # Browse button
         self.browse_btn = ctk.CTkButton(
-            self, text="Browse", width=70, command=self._browse
+            self, text="Browse", width=70, command=self._browse, font=get_font()
         )
         self.browse_btn.grid(row=0, column=2, sticky="e")
 

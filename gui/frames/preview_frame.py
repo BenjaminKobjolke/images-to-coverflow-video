@@ -7,6 +7,7 @@ import numpy as np
 import cv2
 
 from ..widgets.range_slider import RangeSlider
+from ..fonts import get_font
 
 
 class PreviewFrame(ctk.CTkFrame):
@@ -43,6 +44,7 @@ class PreviewFrame(ctk.CTkFrame):
             text="No preview\n\nSelect a source folder and click Refresh",
             width=640,
             height=480,
+            font=get_font(),
         )
         self.preview_label.grid(row=0, column=0, padx=10, pady=10)
 
@@ -52,7 +54,7 @@ class PreviewFrame(ctk.CTkFrame):
         controls_frame.grid_columnconfigure(1, weight=1)
 
         # Frame label
-        ctk.CTkLabel(controls_frame, text="Frame:").grid(row=0, column=0, padx=(0, 10))
+        ctk.CTkLabel(controls_frame, text="Frame:", font=get_font()).grid(row=0, column=0, padx=(0, 10))
 
         # Frame slider
         self.frame_slider = ctk.CTkSlider(
@@ -65,11 +67,11 @@ class PreviewFrame(ctk.CTkFrame):
         self.frame_slider.grid(row=0, column=1, padx=5, sticky="ew")
 
         # Frame value label (shows total)
-        self.frame_label = ctk.CTkLabel(controls_frame, text="/ 100", width=50)
+        self.frame_label = ctk.CTkLabel(controls_frame, text="/ 100", width=50, font=get_font())
         self.frame_label.grid(row=0, column=2, padx=(5, 0))
 
         # Frame number entry
-        self.frame_entry = ctk.CTkEntry(controls_frame, width=60)
+        self.frame_entry = ctk.CTkEntry(controls_frame, width=60, font=get_font())
         self.frame_entry.insert(0, "0")
         self.frame_entry.grid(row=0, column=3, padx=5)
         self.frame_entry.bind("<Return>", self._on_entry_submit)
@@ -81,6 +83,7 @@ class PreviewFrame(ctk.CTkFrame):
             text="Refresh",
             width=80,
             command=self._on_refresh_click,
+            font=get_font(),
         )
         self.refresh_btn.grid(row=0, column=4)
 
@@ -90,7 +93,7 @@ class PreviewFrame(ctk.CTkFrame):
         range_frame.grid_columnconfigure(1, weight=1)
 
         # Range label
-        ctk.CTkLabel(range_frame, text="Range:").grid(row=0, column=0, padx=(0, 10))
+        ctk.CTkLabel(range_frame, text="Range:", font=get_font()).grid(row=0, column=0, padx=(0, 10))
 
         # Range slider
         self.range_slider = RangeSlider(
@@ -102,7 +105,7 @@ class PreviewFrame(ctk.CTkFrame):
         self.range_slider.grid(row=0, column=1, padx=5, sticky="ew")
 
         # Range info label
-        self.range_label = ctk.CTkLabel(range_frame, text="0 - 100 (101 frames)", width=150)
+        self.range_label = ctk.CTkLabel(range_frame, text="0 - 100 (101 frames)", width=150, font=get_font())
         self.range_label.grid(row=0, column=2, padx=(5, 0))
 
         # Reset range button
@@ -111,6 +114,7 @@ class PreviewFrame(ctk.CTkFrame):
             text="Reset",
             width=60,
             command=self._on_reset_range,
+            font=get_font(),
         )
         self.reset_range_btn.grid(row=0, column=3, padx=(5, 0))
 

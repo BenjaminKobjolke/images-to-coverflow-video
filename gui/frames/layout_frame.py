@@ -3,6 +3,7 @@
 from typing import Callable, Optional
 import customtkinter as ctk
 from ..widgets import LabeledSlider
+from ..fonts import get_font
 
 
 class LayoutFrame(ctk.CTkFrame):
@@ -25,7 +26,7 @@ class LayoutFrame(ctk.CTkFrame):
 
         # Title
         self.title_label = ctk.CTkLabel(
-            self, text="Layout", font=ctk.CTkFont(size=14, weight="bold")
+            self, text="Layout", font=get_font(weight="bold")
         )
         self.title_label.pack(anchor="w", padx=10, pady=(10, 5))
 
@@ -35,7 +36,7 @@ class LayoutFrame(ctk.CTkFrame):
         mode_frame.grid_columnconfigure(0, weight=0)
         mode_frame.grid_columnconfigure(1, weight=1)
 
-        ctk.CTkLabel(mode_frame, text="Mode", width=120, anchor="w").grid(
+        ctk.CTkLabel(mode_frame, text="Mode", width=120, anchor="w", font=get_font()).grid(
             row=0, column=0, padx=(0, 10), sticky="w"
         )
         self.mode_var = ctk.StringVar(value="arc")
@@ -55,7 +56,7 @@ class LayoutFrame(ctk.CTkFrame):
         align_frame.grid_columnconfigure(0, weight=0)
         align_frame.grid_columnconfigure(1, weight=1)
 
-        ctk.CTkLabel(align_frame, text="Alignment", width=120, anchor="w").grid(
+        ctk.CTkLabel(align_frame, text="Alignment", width=120, anchor="w", font=get_font()).grid(
             row=0, column=0, padx=(0, 10), sticky="w"
         )
         self.alignment_var = ctk.StringVar(value="center")

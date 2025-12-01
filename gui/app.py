@@ -31,6 +31,7 @@ from .projects import (
 )
 from .settings import load_settings, save_settings
 from .dialogs import InterfaceSettingsDialog
+from .fonts import get_font
 
 
 class CoverflowApp(ctk.CTkFrame):
@@ -45,6 +46,8 @@ class CoverflowApp(ctk.CTkFrame):
         self._video_worker: Optional[VideoWorker] = None
         self._progress_dialog: Optional[ProgressDialog] = None
         self._selected_project_path: Optional[Path] = None
+        self._recent_menu = None
+        self._refresh_recent_menu = None
 
         # Create projects directory if needed
         create_default_projects()
@@ -179,7 +182,7 @@ class CoverflowApp(ctk.CTkFrame):
             text="Generate Video",
             command=self._on_generate,
             height=40,
-            font=ctk.CTkFont(size=14, weight="bold"),
+            font=get_font(weight="bold"),
         )
         self.generate_btn.grid(row=0, column=0, padx=5, sticky="ew")
 
@@ -516,6 +519,7 @@ class CoverflowApp(ctk.CTkFrame):
             self._set_all_values(values)
             self._update_title()
             self._save_last_project()
+            self._add_to_recent_projects(self._selected_project_path)
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load project:\n{e}")
             self._selected_project_path = None
@@ -554,5 +558,69 @@ class CoverflowApp(ctk.CTkFrame):
             self._selected_project_path = filepath
             self._update_title()
             self._save_last_project()
+            self._add_to_recent_projects(filepath)
         except Exception as e:
             messagebox.showerror("Error", f"Failed to save project:\n{e}")
+
+    def set_recent_menu(self, menu, refresh_callback):
+        """Set the recent projects menu reference for dynamic updates."""
+        self._recent_menu = menu
+        self._refresh_recent_menu = refresh_callback
+
+    def _open_recent_project(self, filepath: str):
+        """Open a project from the recent projects list."""
+        path = Path(filepath)
+        if not path.exists():
+            messagebox.showerror("Error", f"Project file not found:\n{filepath}")
+            # Remove from recent projects
+            self._remove_from_recent_projects(filepath)
+            return
+
+        try:
+            self._selected_project_path = path
+            values = load_project(path)
+            self._set_all_values(values)
+            self._update_title()
+            self._save_last_project()
+            self._add_to_recent_projects(path)
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load project:\n{e}")
+            self._selected_project_path = None
+
+    def _add_to_recent_projects(self, filepath: Path):
+        """Add a project to the recent projects list."""
+        settings = load_settings()
+        recent = settings.get("recent_projects", [])
+
+        filepath_str = str(filepath)
+
+        # Remove if already in list (will be re-added at front)
+        if filepath_str in recent:
+            recent.remove(filepath_str)
+
+        # Add to front of list
+        recent.insert(0, filepath_str)
+
+        # Limit to 10 items
+        recent = recent[:10]
+
+        settings["recent_projects"] = recent
+        save_settings(settings)
+
+        # Refresh the menu
+        if self._refresh_recent_menu:
+            self._refresh_recent_menu()
+
+    def _remove_from_recent_projects(self, filepath: str):
+        """Remove a project from the recent projects list."""
+        settings = load_settings()
+        recent = settings.get("recent_projects", [])
+
+        if filepath in recent:
+            recent.remove(filepath)
+            settings["recent_projects"] = recent
+            save_settings(settings)
+
+            # Refresh the menu
+            if self._refresh_recent_menu:
+                self._refresh_recent_menu()

@@ -1,5 +1,7 @@
 """Settings persistence for the GUI application."""
 import json
+import os
+import sys
 from pathlib import Path
 from typing import Any, Dict
 
@@ -7,7 +9,9 @@ from typing import Any, Dict
 DEFAULTS = {
     "theme": "Dark",
     "sidebar_columns": 1,
+    "font_size": 14,
     "last_project": None,
+    "recent_projects": [],
     "window_width": 1200,
     "window_height": 800,
     "window_x": None,  # None = center on screen
@@ -17,8 +21,15 @@ DEFAULTS = {
 
 
 def get_settings_path() -> Path:
-    """Return the path to the settings file."""
-    return Path(__file__).parent / "config.json"
+    """Return the path to the settings file in user's AppData."""
+    if sys.platform == "win32":
+        base = Path(os.environ.get("APPDATA", Path.home()))
+    else:
+        base = Path.home() / ".config"
+
+    app_dir = base / "CoverflowVideoGenerator"
+    app_dir.mkdir(parents=True, exist_ok=True)
+    return app_dir / "config.json"
 
 
 def load_settings() -> Dict[str, Any]:

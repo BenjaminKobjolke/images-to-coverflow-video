@@ -24,6 +24,7 @@ class Config:
     reflection_length: float = 0.5  # Fraction of image height to show in reflection (0.0-1.0)
     repeat: bool = False  # Loop images so there's always content on both sides
     loop: bool = False  # Add transition from last to first image for seamless video looping
+    easing: str = "ease_in_out_cubic"  # Easing function for transitions
     mode: str = "arc"  # "arc" or "flat"
     alignment: str = "center"  # "center", "top", or "bottom"
     image_scale: float = 0.6  # Maximum image size as fraction of canvas (0.0-1.0)

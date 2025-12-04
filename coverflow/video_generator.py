@@ -10,7 +10,7 @@ import numpy as np
 
 from .config import Config
 from .renderer import CoverflowRenderer
-from .utils import ease_in_out_cubic
+from .utils import get_easing_function
 
 
 class VideoGenerator:
@@ -24,6 +24,7 @@ class VideoGenerator:
         """
         self.config = config
         self.renderer = CoverflowRenderer(config)
+        self.easing_func = get_easing_function(config.easing)
 
     def generate(
         self,
@@ -97,7 +98,7 @@ class VideoGenerator:
                 # In transition phase
                 trans_frame = frame_in_segment - hold_frames
                 offset = trans_frame / transition_frames if transition_frames > 0 else 0
-                offset = ease_in_out_cubic(offset)
+                offset = self.easing_func(offset)
 
             # Render and save
             canvas = self.renderer.render_frame(images, img_idx, offset)
@@ -199,7 +200,7 @@ class VideoGenerator:
                         # Calculate offset (0 to 1)
                         offset = frame / transition_frames
                         # Use easing function for smooth animation
-                        offset = ease_in_out_cubic(offset)
+                        offset = self.easing_func(offset)
 
                         canvas = self.renderer.render_frame(images, img_idx, offset)
                         out.append_data(cv2.cvtColor(canvas, cv2.COLOR_BGR2RGB))
@@ -231,7 +232,7 @@ class VideoGenerator:
                     # Calculate offset (0 to 1)
                     offset = frame / transition_frames
                     # Use easing function for smooth animation
-                    offset = ease_in_out_cubic(offset)
+                    offset = self.easing_func(offset)
 
                     canvas = self.renderer.render_frame(images, num_images - 1, offset)
                     out.append_data(cv2.cvtColor(canvas, cv2.COLOR_BGR2RGB))

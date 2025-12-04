@@ -47,6 +47,8 @@ class LayoutFrame(ctk.CTkFrame):
             command=self._on_mode_selected,
             state="readonly",
             width=150,
+            font=get_font(),
+            dropdown_font=get_font(),
         )
         self.mode_combo.grid(row=0, column=1, sticky="w")
 
@@ -66,6 +68,8 @@ class LayoutFrame(ctk.CTkFrame):
             variable=self.alignment_var,
             state="readonly",
             width=150,
+            font=get_font(),
+            dropdown_font=get_font(),
         )
         self.alignment_combo.grid(row=0, column=1, sticky="w")
 

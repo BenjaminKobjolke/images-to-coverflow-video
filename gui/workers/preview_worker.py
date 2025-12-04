@@ -6,7 +6,7 @@ import numpy as np
 
 from coverflow import Config, ImageLoader
 from coverflow.renderer import CoverflowRenderer
-from coverflow.utils import ease_in_out_cubic
+from coverflow.utils import get_easing_function
 
 
 class PreviewWorker:
@@ -46,8 +46,9 @@ class PreviewWorker:
                 self.on_complete(None, "No images found in source folder")
                 return
 
-            # Create renderer
+            # Create renderer and get easing function
             renderer = CoverflowRenderer(self.config)
+            easing_func = get_easing_function(self.config.easing)
 
             # Calculate which image and offset for this frame
             transition_frames = int(self.config.transition * self.config.fps)
@@ -71,7 +72,7 @@ class PreviewWorker:
                 img_idx = num_images - 1
                 trans_frame = frame - regular_frames
                 offset = trans_frame / transition_frames if transition_frames > 0 else 0
-                offset = ease_in_out_cubic(offset)
+                offset = easing_func(offset)
             else:
                 # Normal playback: find which image and offset
                 frames_per_image = hold_frames + transition_frames
@@ -87,7 +88,7 @@ class PreviewWorker:
                     # In transition phase
                     trans_frame = frame_in_segment - hold_frames
                     offset = trans_frame / transition_frames if transition_frames > 0 else 0
-                    offset = ease_in_out_cubic(offset)
+                    offset = easing_func(offset)
 
             # Render frame
             canvas = renderer.render_frame(images, img_idx, offset)

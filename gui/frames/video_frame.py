@@ -89,6 +89,8 @@ class VideoFrame(ctk.CTkFrame):
             variable=self.encoder_var,
             values=["h264", "h265"],
             width=120,
+            font=get_font(),
+            dropdown_font=get_font(),
         )
         self.encoder_menu.pack(side="left", padx=(5, 0))
 
@@ -102,6 +104,8 @@ class VideoFrame(ctk.CTkFrame):
             variable=self.preset_var,
             values=["ultrafast", "fast", "medium", "slow", "veryslow"],
             width=120,
+            font=get_font(),
+            dropdown_font=get_font(),
         )
         self.preset_menu.pack(side="left", padx=(5, 0))
 

@@ -31,6 +31,7 @@ DEFAULTS = {
     "image_y": 0.5,
     "repeat": False,
     "loop": False,
+    "easing": "ease_in_out_cubic",
     "statistics": False,
     "preview": None,
     "background": None,
@@ -104,6 +105,18 @@ def parse_args():
         type=float,
         default=None,
         help="Hold duration for each image in seconds (default: 2)",
+    )
+    parser.add_argument(
+        "--easing",
+        type=str,
+        choices=[
+            "linear",
+            "ease_in_quad", "ease_out_quad", "ease_in_out_quad",
+            "ease_in_cubic", "ease_out_cubic", "ease_in_out_cubic",
+            "ease_in_sine", "ease_out_sine", "ease_in_out_sine",
+        ],
+        default=None,
+        help="Easing function for transitions (default: ease_in_out_cubic)",
     )
     parser.add_argument(
         "--fps", type=int, default=None, help="Frames per second (default: 30)"
@@ -281,6 +294,7 @@ def main():
     print(f"  Resolution: {settings['width']}x{settings['height']}")
     print(f"  Transition: {settings['transition']}s")
     print(f"  Hold: {settings['hold']}s")
+    print(f"  Easing: {settings['easing']}")
     print(f"  FPS: {settings['fps']}")
     print(f"  Output: {settings['output']}")
     if settings["background"]:
@@ -325,6 +339,7 @@ def main():
         reflection_length=settings["reflection_length"],
         repeat=settings["repeat"],
         loop=settings["loop"],
+        easing=settings["easing"],
         mode=settings["mode"],
         alignment=settings["alignment"],
         image_scale=settings["image_scale"],

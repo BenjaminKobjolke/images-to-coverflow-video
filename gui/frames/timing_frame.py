@@ -41,6 +41,28 @@ class TimingFrame(ctk.CTkFrame):
         )
         self.hold_slider.pack(fill="x", padx=10, pady=2)
 
+        # First hold checkbox and slider
+        self.first_hold_var = ctk.BooleanVar(value=False)
+        self.first_hold_check = ctk.CTkCheckBox(
+            self,
+            text="Custom first hold",
+            variable=self.first_hold_var,
+            command=self._on_first_hold_toggle,
+            font=get_font(),
+        )
+        self.first_hold_check.pack(anchor="w", padx=10, pady=(5, 0))
+
+        self.first_hold_slider = LabeledSlider(
+            self,
+            label="First Hold (s)",
+            from_=0.0,
+            to=10.0,
+            default=1.0,
+            decimal_places=1,
+        )
+        self.first_hold_slider.pack(fill="x", padx=10, pady=2)
+        self.first_hold_slider.set_enabled(False)  # Disabled by default
+
         # Easing function dropdown
         self.easing_label = ctk.CTkLabel(self, text="Easing", font=get_font())
         self.easing_label.pack(anchor="w", padx=10, pady=(5, 0))
@@ -55,11 +77,22 @@ class TimingFrame(ctk.CTkFrame):
         self.easing_dropdown.set("ease_in_out_cubic")
         self.easing_dropdown.pack(fill="x", padx=10, pady=(2, 10))
 
+    def _on_first_hold_toggle(self):
+        """Handle first hold checkbox toggle."""
+        enabled = self.first_hold_var.get()
+        self.first_hold_slider.set_enabled(enabled)
+
     def get_values(self) -> dict:
         """Get all timing values."""
+        # Only return first_hold value if checkbox is checked
+        if self.first_hold_var.get():
+            first_hold = self.first_hold_slider.get()
+        else:
+            first_hold = None
         return {
             "transition": self.transition_slider.get(),
             "hold": self.hold_slider.get(),
+            "first_hold": first_hold,
             "easing": self.easing_dropdown.get(),
         }
 
@@ -69,5 +102,15 @@ class TimingFrame(ctk.CTkFrame):
             self.transition_slider.set(values["transition"])
         if "hold" in values:
             self.hold_slider.set(values["hold"])
+        if "first_hold" in values:
+            if values["first_hold"] is not None:
+                # Enable checkbox and set slider value
+                self.first_hold_var.set(True)
+                self.first_hold_slider.set(values["first_hold"])
+                self.first_hold_slider.set_enabled(True)
+            else:
+                # Disable checkbox
+                self.first_hold_var.set(False)
+                self.first_hold_slider.set_enabled(False)
         if "easing" in values:
             self.easing_dropdown.set(values["easing"])

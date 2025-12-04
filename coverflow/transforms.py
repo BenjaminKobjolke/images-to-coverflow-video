@@ -5,6 +5,8 @@ from typing import Optional, Tuple
 import cv2
 import numpy as np
 
+from .utils import apply_decay_curve, apply_increase_curve
+
 
 class ImageTransformer:
     """Handles image transformations for coverflow effect."""
@@ -31,7 +33,10 @@ class ImageTransformer:
     def apply_perspective(
         img: np.ndarray, angle: float, canvas_width: int, canvas_height: int,
         perspective: float = 0.3, side_scale: float = 0.3, spacing: float = 0.35,
-        mode: str = "arc"
+        mode: str = "arc", side_blur: float = 0.0, side_alpha: float = 1.0,
+        side_scale_curve: str = "exponential", side_blur_curve: str = "linear",
+        side_alpha_curve: str = "exponential",
+        side_scale_start: int = 1, side_blur_start: int = 1, side_alpha_start: int = 1
     ) -> Tuple[Optional[np.ndarray], int, int]:
         """Apply a 3D perspective transform to simulate coverflow effect.
 
@@ -47,6 +52,14 @@ class ImageTransformer:
             side_scale: How much side images shrink (0 = same size, default: 0.3).
             spacing: Horizontal spacing between images (default: 0.35).
             mode: Layout mode - 'arc' (circular) or 'flat' (straight row).
+            side_blur: Blur amount for side images (0 = no blur, higher = more blur).
+            side_alpha: Opacity for side images (1.0 = fully visible, lower = fades).
+            side_scale_curve: Curve type for side_scale effect.
+            side_blur_curve: Curve type for side_blur effect.
+            side_alpha_curve: Curve type for side_alpha effect.
+            side_scale_start: Position where scale effect begins (1 = immediate).
+            side_blur_start: Position where blur effect begins (1 = immediate).
+            side_alpha_start: Position where alpha effect begins (1 = immediate).
 
         Returns:
             Tuple of (transformed image or None, x_offset, y_offset).
@@ -54,9 +67,14 @@ class ImageTransformer:
         h, w = img.shape[:2]
         abs_angle = abs(angle)
 
-        # Scale factor based on distance from center (multiplicative)
-        # side_scale=0.7 means each position is 70% the size of the previous
-        scale = side_scale ** abs_angle if side_scale > 0 else 1.0
+        # Position scale always uses exponential (for consistent spacing)
+        position_scale = side_scale ** abs_angle if side_scale > 0 else 1.0
+
+        # Calculate effective angle for scale (offset by start index)
+        effective_scale_angle = max(0, abs_angle - (side_scale_start - 1))
+
+        # Visual scale uses selected curve (for image sizing)
+        scale = apply_decay_curve(side_scale, effective_scale_angle, side_scale_curve) if side_scale > 0 else 1.0
 
         # Scale both dimensions uniformly first
         new_w = int(w * scale)
@@ -72,6 +90,22 @@ class ImageTransformer:
         if img_scaled.shape[2] == 3:
             img_scaled = cv2.cvtColor(img_scaled, cv2.COLOR_BGR2BGRA)
 
+        # Apply blur if configured using selected curve (increase: 0 at center)
+        # Calculate effective angle for blur (offset by start index)
+        effective_blur_angle = max(0, abs_angle - (side_blur_start - 1))
+        if side_blur > 0 and effective_blur_angle > 0.01:
+            blur_amount = apply_increase_curve(side_blur, effective_blur_angle, side_blur_curve)
+            ksize = int(blur_amount) * 2 + 1
+            if ksize > 1:
+                img_scaled = cv2.GaussianBlur(img_scaled, (ksize, ksize), blur_amount)
+
+        # Apply alpha fade if configured using selected curve (decay: 1.0 at center)
+        # Calculate effective angle for alpha (offset by start index)
+        effective_alpha_angle = max(0, abs_angle - (side_alpha_start - 1))
+        if side_alpha < 1.0 and effective_alpha_angle > 0.01:
+            alpha_factor = apply_decay_curve(side_alpha, effective_alpha_angle, side_alpha_curve)
+            img_scaled[:, :, 3] = (img_scaled[:, :, 3] * alpha_factor).astype(np.uint8)
+
         # For center image, no perspective needed
         if abs_angle < 0.01:
             x_offset = int((canvas_width - new_w) / 2)
@@ -84,18 +118,18 @@ class ImageTransformer:
             if abs_angle < 0.01:
                 x_offset = int((canvas_width - new_w) / 2)
             else:
-                # Estimate center image width
-                center_width = new_w / scale
+                # Estimate center image width (use position_scale for consistent spacing)
+                center_width = w * position_scale / position_scale  # = w (center width)
 
                 # k factor for overlap calculation
                 # spacing = fraction NOT overlapping (0.1 = 10% gap, 90% overlap)
                 k = 0.5 * (1 - side_scale) + spacing * side_scale
 
-                # Displacement using geometric series sum
+                # Displacement using geometric series sum (use position_scale for consistent spacing)
                 if side_scale < 1.0:
-                    displacement = center_width * k * (1 - scale) / (1 - side_scale)
+                    displacement = w * k * (1 - position_scale) / (1 - side_scale)
                 else:
-                    displacement = center_width * k * abs_angle
+                    displacement = w * k * abs_angle
 
                 # Apply direction
                 if angle > 0:
@@ -145,8 +179,8 @@ class ImageTransformer:
             borderValue=(0, 0, 0, 0)
         )
 
-        # Calculate position on canvas (arc mode - spacing scales with canvas, creates convergence)
-        x_offset = int((canvas_width - new_w) / 2 + angle * canvas_width * spacing * scale)
+        # Calculate position on canvas (arc mode - use position_scale for consistent spacing)
+        x_offset = int((canvas_width - new_w) / 2 + angle * canvas_width * spacing * position_scale)
         y_offset = int((canvas_height - new_h) / 2)
 
         return transformed, x_offset, y_offset
@@ -163,6 +197,14 @@ class ImageTransformer:
         spacing: float = 0.35,
         mode: str = "arc",
         reflection_length: float = 0.5,
+        side_blur: float = 0.0,
+        side_alpha: float = 1.0,
+        side_scale_curve: str = "exponential",
+        side_blur_curve: str = "linear",
+        side_alpha_curve: str = "exponential",
+        side_scale_start: int = 1,
+        side_blur_start: int = 1,
+        side_alpha_start: int = 1,
     ) -> Tuple[Optional[np.ndarray], int, int]:
         """Create a reflection effect below the image.
 
@@ -180,13 +222,23 @@ class ImageTransformer:
             spacing: Horizontal spacing between images (default: 0.35).
             mode: Layout mode - 'arc' (circular) or 'flat' (straight row).
             reflection_length: Fraction of image height to show in reflection (0.0-1.0).
+            side_blur: Blur amount for side images (0 = no blur, higher = more blur).
+            side_alpha: Opacity for side images (1.0 = fully visible, lower = fades).
+            side_scale_curve: Curve type for side_scale effect.
+            side_blur_curve: Curve type for side_blur effect.
+            side_alpha_curve: Curve type for side_alpha effect.
+            side_scale_start: Position where scale effect begins (1 = immediate).
+            side_blur_start: Position where blur effect begins (1 = immediate).
+            side_alpha_start: Position where alpha effect begins (1 = immediate).
 
         Returns:
             Tuple of (reflected image with gradient fade, x_offset, y_offset).
         """
         # Step 1: Apply perspective transform FIRST (normal mode)
         transformed, x_offset, y_offset = self.apply_perspective(
-            img, position, canvas_width, canvas_height, perspective, side_scale, spacing, mode
+            img, position, canvas_width, canvas_height, perspective, side_scale, spacing, mode,
+            side_blur, side_alpha, side_scale_curve, side_blur_curve, side_alpha_curve,
+            side_scale_start, side_blur_start, side_alpha_start
         )
 
         if transformed is None:

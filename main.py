@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 from coverflow import Config, ImageLoader, VideoGenerator
+from coverflow.utils import SIDE_CURVE_NAMES
 
 
 # Default values for all optional settings
@@ -19,8 +20,17 @@ DEFAULTS = {
     "output": "output.mp4",
     "transition": 2.0,
     "hold": 2.0,
+    "first_hold": None,
     "perspective": 0.3,
     "side_scale": 0.8,
+    "side_blur": 0.0,
+    "side_alpha": 1.0,
+    "side_scale_curve": "exponential",
+    "side_blur_curve": "linear",
+    "side_alpha_curve": "exponential",
+    "side_scale_start": 1,
+    "side_blur_start": 1,
+    "side_alpha_start": 1,
     "visible_range": 3,
     "spacing": 0.35,
     "reflection": 0.2,
@@ -32,9 +42,12 @@ DEFAULTS = {
     "repeat": False,
     "loop": False,
     "easing": "ease_in_out_cubic",
+    "motion_blur": 0,
     "statistics": False,
     "preview": None,
     "background": None,
+    "background_color": None,
+    "background_color_bottom": None,
     "source": None,
     "start_frame": None,
     "end_frame": None,
@@ -107,6 +120,12 @@ def parse_args():
         help="Hold duration for each image in seconds (default: 2)",
     )
     parser.add_argument(
+        "--first-hold",
+        type=float,
+        default=None,
+        help="Hold duration for first image in seconds (default: use --hold value)",
+    )
+    parser.add_argument(
         "--easing",
         type=str,
         choices=[
@@ -119,6 +138,12 @@ def parse_args():
         help="Easing function for transitions (default: ease_in_out_cubic)",
     )
     parser.add_argument(
+        "--motion-blur",
+        type=int,
+        default=None,
+        help="Motion blur sub-frames (0=disabled, 2-8 recommended)",
+    )
+    parser.add_argument(
         "--fps", type=int, default=None, help="Frames per second (default: 30)"
     )
     parser.add_argument(
@@ -126,6 +151,18 @@ def parse_args():
     )
     parser.add_argument(
         "--background", default=None, help="Background image file (optional)"
+    )
+    parser.add_argument(
+        "--background-color",
+        type=str,
+        default=None,
+        help="Background color in hex format (e.g., #FF5500). Top color for gradient.",
+    )
+    parser.add_argument(
+        "--background-color-bottom",
+        type=str,
+        default=None,
+        help="Bottom color for vertical gradient (e.g., #000000)",
     )
     parser.add_argument(
         "--perspective",
@@ -138,6 +175,45 @@ def parse_args():
         type=float,
         default=None,
         help="Scale factor for each position from center (0.7 = each image is 70%% of previous, 1.0 = same size, default: 0.8)",
+    )
+    parser.add_argument(
+        "--side-scale-curve",
+        type=str,
+        choices=SIDE_CURVE_NAMES,
+        default=None,
+        help="Curve type for side scale effect (default: exponential)",
+    )
+    parser.add_argument(
+        "--side-blur-curve",
+        type=str,
+        choices=SIDE_CURVE_NAMES,
+        default=None,
+        help="Curve type for side blur effect (default: linear)",
+    )
+    parser.add_argument(
+        "--side-alpha-curve",
+        type=str,
+        choices=SIDE_CURVE_NAMES,
+        default=None,
+        help="Curve type for side alpha effect (default: exponential)",
+    )
+    parser.add_argument(
+        "--side-scale-start",
+        type=int,
+        default=None,
+        help="Position where scale effect begins (1 = immediate, 2 = skip first position, default: 1)",
+    )
+    parser.add_argument(
+        "--side-blur-start",
+        type=int,
+        default=None,
+        help="Position where blur effect begins (1 = immediate, 2 = skip first position, default: 1)",
+    )
+    parser.add_argument(
+        "--side-alpha-start",
+        type=int,
+        default=None,
+        help="Position where alpha effect begins (1 = immediate, 2 = skip first position, default: 1)",
     )
     parser.add_argument(
         "--visible-range",
@@ -294,13 +370,23 @@ def main():
     print(f"  Resolution: {settings['width']}x{settings['height']}")
     print(f"  Transition: {settings['transition']}s")
     print(f"  Hold: {settings['hold']}s")
+    if settings["first_hold"] is not None:
+        print(f"  First hold: {settings['first_hold']}s")
     print(f"  Easing: {settings['easing']}")
+    if settings["motion_blur"] > 0:
+        print(f"  Motion blur: {settings['motion_blur']} sub-frames")
     print(f"  FPS: {settings['fps']}")
     print(f"  Output: {settings['output']}")
     if settings["background"]:
         print(f"  Background: {settings['background']}")
+    if settings["background_color"]:
+        print(f"  Background color: {settings['background_color']}")
+    if settings["background_color_bottom"]:
+        print(f"  Background color bottom: {settings['background_color_bottom']}")
     print(f"  Perspective: {settings['perspective']}")
-    print(f"  Side scale: {settings['side_scale']}")
+    print(f"  Side scale: {settings['side_scale']} ({settings['side_scale_curve']}, start={settings['side_scale_start']})")
+    print(f"  Side blur: {settings['side_blur']} ({settings['side_blur_curve']}, start={settings['side_blur_start']})")
+    print(f"  Side alpha: {settings['side_alpha']} ({settings['side_alpha_curve']}, start={settings['side_alpha_start']})")
     print(f"  Visible range: {settings['visible_range']}")
     print(f"  Spacing: {settings['spacing']}")
     print(f"  Reflection: {settings['reflection']}")
@@ -328,11 +414,22 @@ def main():
         height=settings["height"],
         transition=settings["transition"],
         hold=settings["hold"],
+        first_hold=settings["first_hold"],
         fps=settings["fps"],
         output=settings["output"],
         background=settings["background"],
+        background_color=settings["background_color"],
+        background_color_bottom=settings["background_color_bottom"],
         perspective=settings["perspective"],
         side_scale=settings["side_scale"],
+        side_blur=settings["side_blur"],
+        side_alpha=settings["side_alpha"],
+        side_scale_curve=settings["side_scale_curve"],
+        side_blur_curve=settings["side_blur_curve"],
+        side_alpha_curve=settings["side_alpha_curve"],
+        side_scale_start=settings["side_scale_start"],
+        side_blur_start=settings["side_blur_start"],
+        side_alpha_start=settings["side_alpha_start"],
         visible_range=settings["visible_range"],
         spacing=settings["spacing"],
         reflection=settings["reflection"],
@@ -340,6 +437,7 @@ def main():
         repeat=settings["repeat"],
         loop=settings["loop"],
         easing=settings["easing"],
+        motion_blur=settings["motion_blur"],
         mode=settings["mode"],
         alignment=settings["alignment"],
         image_scale=settings["image_scale"],

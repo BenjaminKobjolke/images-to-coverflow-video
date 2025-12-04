@@ -9,6 +9,22 @@ from .config import Config
 from .transforms import ImageTransformer
 
 
+def parse_hex_color(hex_color: str) -> tuple:
+    """Parse hex color string to BGR tuple for OpenCV.
+
+    Args:
+        hex_color: Hex color string like "#FF5500" or "FF5500".
+
+    Returns:
+        BGR tuple like (0, 85, 255).
+    """
+    hex_color = hex_color.lstrip('#')
+    r = int(hex_color[0:2], 16)
+    g = int(hex_color[2:4], 16)
+    b = int(hex_color[4:6], 16)
+    return (b, g, r)  # BGR for OpenCV
+
+
 class CoverflowRenderer:
     """Renders coverflow frames."""
 
@@ -34,7 +50,8 @@ class CoverflowRenderer:
         if not path:
             return None
 
-        img = cv2.imread(path)
+        # Load with IMREAD_UNCHANGED to preserve alpha channel for transparency
+        img = cv2.imread(path, cv2.IMREAD_UNCHANGED)
         if img is None:
             print(f"Warning: Could not load background image '{path}'")
             return None
@@ -57,16 +74,38 @@ class CoverflowRenderer:
         """Create background canvas.
 
         Returns:
-            Background canvas (custom image or gradient).
+            Background canvas (color, custom image, or gradient).
         """
-        if self.background_image is not None:
-            return self.background_image.copy()
+        # Start with color or gradient as base
+        if self.config.background_color:
+            top_color = parse_hex_color(self.config.background_color)
+            if self.config.background_color_bottom:
+                # Two-color vertical gradient
+                bottom_color = parse_hex_color(self.config.background_color_bottom)
+                canvas = np.zeros((self.config.height, self.config.width, 3), dtype=np.uint8)
+                for y in range(self.config.height):
+                    t = y / self.config.height
+                    color = [int(top_color[i] * (1 - t) + bottom_color[i] * t) for i in range(3)]
+                    canvas[y, :] = color
+            else:
+                # Solid color
+                canvas = np.full((self.config.height, self.config.width, 3), top_color, dtype=np.uint8)
+        else:
+            # Default: gradient background (dark gray to black)
+            canvas = np.zeros((self.config.height, self.config.width, 3), dtype=np.uint8)
+            for y in range(self.config.height):
+                intensity = int(40 * (1 - y / self.config.height))
+                canvas[y, :] = [intensity, intensity, intensity]
 
-        # Default: gradient background (dark gray to black)
-        canvas = np.zeros((self.config.height, self.config.width, 3), dtype=np.uint8)
-        for y in range(self.config.height):
-            intensity = int(40 * (1 - y / self.config.height))
-            canvas[y, :] = [intensity, intensity, intensity]
+        # Overlay background image if exists
+        if self.background_image is not None:
+            # Blend with alpha if BGRA, else just copy
+            if len(self.background_image.shape) == 3 and self.background_image.shape[2] == 4:
+                alpha = self.background_image[:, :, 3:4] / 255.0
+                rgb = self.background_image[:, :, :3]
+                canvas = (rgb * alpha + canvas * (1 - alpha)).astype(np.uint8)
+            else:
+                canvas = self.background_image.copy()
 
         return canvas
 
@@ -128,7 +167,9 @@ class CoverflowRenderer:
             transformed, x_pos, y_pos = self.transformer.apply_perspective(
                 img_rgba, position, self.config.width, self.config.height,
                 self.config.perspective, self.config.side_scale, self.config.spacing,
-                self.config.mode
+                self.config.mode, self.config.side_blur, self.config.side_alpha,
+                self.config.side_scale_curve, self.config.side_blur_curve, self.config.side_alpha_curve,
+                self.config.side_scale_start, self.config.side_blur_start, self.config.side_alpha_start
             )
 
             if transformed is not None:
@@ -154,7 +195,14 @@ class CoverflowRenderer:
                         img_rgba, position, self.config.width, self.config.height,
                         alpha=self.config.reflection, perspective=self.config.perspective,
                         side_scale=self.config.side_scale, spacing=self.config.spacing,
-                        mode=self.config.mode, reflection_length=self.config.reflection_length
+                        mode=self.config.mode, reflection_length=self.config.reflection_length,
+                        side_blur=self.config.side_blur, side_alpha=self.config.side_alpha,
+                        side_scale_curve=self.config.side_scale_curve,
+                        side_blur_curve=self.config.side_blur_curve,
+                        side_alpha_curve=self.config.side_alpha_curve,
+                        side_scale_start=self.config.side_scale_start,
+                        side_blur_start=self.config.side_blur_start,
+                        side_alpha_start=self.config.side_alpha_start,
                     )
                     if reflection is not None:
                         refl_y = y_pos + transformed.shape[0] + 5

@@ -50,7 +50,7 @@ class ImageLoader:
         """Load all images from the source directory into memory.
 
         Returns:
-            List of images as numpy arrays in BGR format.
+            List of images as numpy arrays in BGR or BGRA format (alpha preserved).
 
         Raises:
             SystemExit: If no valid images could be loaded.
@@ -62,11 +62,10 @@ class ImageLoader:
         for img_path in image_paths:
             img = cv2.imread(str(img_path), cv2.IMREAD_UNCHANGED)
             if img is not None:
-                # Ensure BGR format
+                # Ensure BGR or BGRA format (preserve alpha for transparency)
                 if len(img.shape) == 2:
                     img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
-                elif img.shape[2] == 4:
-                    img = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
+                # Keep BGRA images as-is to preserve alpha channel
                 images_data.append(img)
             else:
                 print(f"Warning: Could not load {img_path}")

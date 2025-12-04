@@ -26,6 +26,52 @@ class VideoGenerator:
         self.renderer = CoverflowRenderer(config)
         self.easing_func = get_easing_function(config.easing)
 
+    def _render_with_motion_blur(
+        self,
+        images: List[np.ndarray],
+        img_idx: int,
+        base_offset: float,
+        step_size: float,
+    ) -> np.ndarray:
+        """Render a frame with motion blur by blending multiple sub-frames.
+
+        Args:
+            images: List of images.
+            img_idx: Current center image index.
+            base_offset: Base offset for this frame (0 to 1).
+            step_size: Offset step between frames (1/transition_frames).
+
+        Returns:
+            Blended frame with motion blur.
+        """
+        num_samples = self.config.motion_blur
+
+        if num_samples <= 0:
+            # No motion blur, render single frame
+            return self.renderer.render_frame(images, img_idx, base_offset)
+
+        # Render multiple sub-frames and blend
+        # Use float32 accumulator for precision
+        accumulated = None
+
+        for i in range(num_samples):
+            # Calculate sub-frame offset (spread across the step to next frame)
+            sub_offset = base_offset + (i / num_samples) * step_size
+            # Clamp to valid range
+            sub_offset = min(sub_offset, 1.0)
+
+            # Render sub-frame
+            sub_frame = self.renderer.render_frame(images, img_idx, sub_offset)
+
+            if accumulated is None:
+                accumulated = sub_frame.astype(np.float32)
+            else:
+                accumulated += sub_frame.astype(np.float32)
+
+        # Average and convert back to uint8
+        blended = (accumulated / num_samples).astype(np.uint8)
+        return blended
+
     def generate(
         self,
         images: List[np.ndarray],
@@ -42,10 +88,15 @@ class VideoGenerator:
         # Calculate frame counts
         transition_frames = int(self.config.transition * self.config.fps)
         hold_frames = int(self.config.hold * self.config.fps)
+        first_hold_frames = int((self.config.first_hold if self.config.first_hold is not None else self.config.hold) * self.config.fps)
         num_images = len(images)
 
         # Calculate total frames: hold for each image + transitions between images
-        total_frames = num_images * hold_frames + (num_images - 1) * transition_frames
+        # First image may have different hold duration
+        if num_images > 1:
+            total_frames = first_hold_frames + (num_images - 1) * hold_frames + (num_images - 1) * transition_frames
+        else:
+            total_frames = first_hold_frames
         # Add extra transition for loop (last to first)
         if self.config.loop:
             total_frames += transition_frames
@@ -85,18 +136,30 @@ class VideoGenerator:
             target_frame = max(0, min(target_frame, total_frames - 1))
 
             # Find which image and offset for this frame
-            frames_per_image = hold_frames + transition_frames
-            img_idx = target_frame // frames_per_image
-            frame_in_segment = target_frame % frames_per_image
+            # First image segment has different hold duration
+            first_segment = first_hold_frames + transition_frames
+            regular_segment = hold_frames + transition_frames
+
+            if target_frame < first_segment:
+                # We're in the first image segment
+                img_idx = 0
+                frame_in_segment = target_frame
+                current_hold_frames = first_hold_frames
+            else:
+                # We're past the first segment
+                remaining = target_frame - first_segment
+                img_idx = 1 + remaining // regular_segment
+                frame_in_segment = remaining % regular_segment
+                current_hold_frames = hold_frames
 
             # Clamp image index
             img_idx = min(img_idx, num_images - 1)
 
-            if frame_in_segment < hold_frames:
+            if frame_in_segment < current_hold_frames:
                 offset = 0  # In hold phase
             else:
                 # In transition phase
-                trans_frame = frame_in_segment - hold_frames
+                trans_frame = frame_in_segment - current_hold_frames
                 offset = trans_frame / transition_frames if transition_frames > 0 else 0
                 offset = self.easing_func(offset)
 
@@ -157,8 +220,10 @@ class VideoGenerator:
                 return
 
             # Hold phase - keep current image centered
+            # First image uses first_hold_frames, rest use hold_frames
+            current_hold_frames = first_hold_frames if img_idx == 0 else hold_frames
             print(f"  Processing image {img_idx + 1}/{num_images} - hold phase")
-            for frame in range(hold_frames):
+            for frame in range(current_hold_frames):
                 # Check for cancellation
                 if cancel_flag and cancel_flag.is_set():
                     out.close()
@@ -188,6 +253,7 @@ class VideoGenerator:
             # Transition phase - animate to next image
             if img_idx < num_images - 1:
                 print(f"  Processing image {img_idx + 1}/{num_images} - transition phase")
+                step_size = 1.0 / transition_frames if transition_frames > 0 else 0
                 for frame in range(transition_frames):
                     # Check for cancellation
                     if cancel_flag and cancel_flag.is_set():
@@ -202,7 +268,8 @@ class VideoGenerator:
                         # Use easing function for smooth animation
                         offset = self.easing_func(offset)
 
-                        canvas = self.renderer.render_frame(images, img_idx, offset)
+                        # Render with motion blur if enabled
+                        canvas = self._render_with_motion_blur(images, img_idx, offset, step_size)
                         out.append_data(cv2.cvtColor(canvas, cv2.COLOR_BGR2RGB))
                         frames_written += 1
 
@@ -220,6 +287,7 @@ class VideoGenerator:
         # Loop transition - animate from last image back to first
         if self.config.loop and not generation_complete:
             print(f"  Processing loop transition (back to image 1)")
+            step_size = 1.0 / transition_frames if transition_frames > 0 else 0
             for frame in range(transition_frames):
                 # Check for cancellation
                 if cancel_flag and cancel_flag.is_set():
@@ -234,7 +302,8 @@ class VideoGenerator:
                     # Use easing function for smooth animation
                     offset = self.easing_func(offset)
 
-                    canvas = self.renderer.render_frame(images, num_images - 1, offset)
+                    # Render with motion blur if enabled
+                    canvas = self._render_with_motion_blur(images, num_images - 1, offset, step_size)
                     out.append_data(cv2.cvtColor(canvas, cv2.COLOR_BGR2RGB))
                     frames_written += 1
 

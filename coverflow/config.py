@@ -15,9 +15,20 @@ class Config:
     hold: float
     fps: int
     output: str
+    first_hold: Optional[float] = None  # Hold duration for first image, None = use regular hold
     background: Optional[str] = None
+    background_color: Optional[str] = None  # Hex color like "#FF5500" (top color for gradient)
+    background_color_bottom: Optional[str] = None  # Bottom color for vertical gradient
     perspective: float = 0.3
     side_scale: float = 0.8  # Scale factor per position (0.8 = each image is 80% of previous)
+    side_blur: float = 0.0  # Blur amount for side images (0 = no blur, higher = more blur)
+    side_alpha: float = 1.0  # Opacity for side images (1.0 = fully visible, lower = fades)
+    side_scale_curve: str = "exponential"  # Curve type for side_scale
+    side_blur_curve: str = "linear"  # Curve type for side_blur
+    side_alpha_curve: str = "exponential"  # Curve type for side_alpha
+    side_scale_start: int = 1  # Position where scale effect begins
+    side_blur_start: int = 1  # Position where blur effect begins
+    side_alpha_start: int = 1  # Position where alpha effect begins
     visible_range: int = 3  # Number of images visible on each side
     spacing: float = 0.35  # Horizontal spacing between images (lower = closer together)
     reflection: float = 0.2  # Reflection opacity (0 = no reflection, 1 = full opacity)
@@ -25,6 +36,7 @@ class Config:
     repeat: bool = False  # Loop images so there's always content on both sides
     loop: bool = False  # Add transition from last to first image for seamless video looping
     easing: str = "ease_in_out_cubic"  # Easing function for transitions
+    motion_blur: int = 0  # Sub-frames for motion blur (0=disabled, 2-8 recommended)
     mode: str = "arc"  # "arc" or "flat"
     alignment: str = "center"  # "center", "top", or "bottom"
     image_scale: float = 0.6  # Maximum image size as fraction of canvas (0.0-1.0)

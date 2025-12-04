@@ -1,5 +1,6 @@
 """Image transformation functions for coverflow effect."""
 
+import threading
 from typing import Optional, Tuple
 
 import cv2
@@ -11,8 +12,9 @@ from .utils import apply_decay_curve, apply_increase_curve
 class ImageTransformer:
     """Handles image transformations for coverflow effect."""
 
-    # Class-level cache for perspective transform matrices
+    # Class-level cache for perspective transform matrices (with thread lock)
     _perspective_cache: dict = {}
+    _perspective_cache_lock = threading.Lock()
 
     @staticmethod
     def resize_to_fit(img: np.ndarray, max_width: int, max_height: int) -> np.ndarray:
@@ -155,9 +157,12 @@ class ImageTransformer:
         is_left = angle < 0
         cache_key = (new_w, new_h, h_inset, v_inset, is_left)
 
-        # Check cache for pre-computed matrix
-        if cache_key in ImageTransformer._perspective_cache:
-            matrix = ImageTransformer._perspective_cache[cache_key]
+        # Thread-safe cache access for parallel motion blur rendering
+        with ImageTransformer._perspective_cache_lock:
+            cached = ImageTransformer._perspective_cache.get(cache_key)
+
+        if cached is not None:
+            matrix = cached
         else:
             # Source points (original rectangle)
             pts1 = np.float32([
@@ -182,9 +187,10 @@ class ImageTransformer:
                     [new_w - h_inset, new_h - v_inset]  # bottom-right: moves left and up
                 ])
 
-            # Compute and cache perspective transform matrix
+            # Compute and cache perspective transform matrix (thread-safe write)
             matrix = cv2.getPerspectiveTransform(pts1, pts2)
-            ImageTransformer._perspective_cache[cache_key] = matrix
+            with ImageTransformer._perspective_cache_lock:
+                ImageTransformer._perspective_cache[cache_key] = matrix
 
         # Apply transform
         transformed = cv2.warpPerspective(
@@ -286,6 +292,59 @@ class ImageTransformer:
             transformed = np.dstack([transformed, alpha_channel])
 
         return transformed, x_offset, y_offset
+
+    def create_reflection_from_transformed(
+        self,
+        transformed: np.ndarray,
+        x_offset: int,
+        alpha: float = 0.3,
+        reflection_length: float = 0.5,
+    ) -> Tuple[Optional[np.ndarray], int, int]:
+        """Create reflection from an already-transformed image (avoids duplicate transform).
+
+        This is an optimization that skips the perspective transform since the input
+        image has already been transformed. Just flips, crops, and applies gradient.
+
+        Args:
+            transformed: Already perspective-transformed image (BGRA).
+            x_offset: X position from the original transform.
+            alpha: Overall opacity of the reflection (0.0 to 1.0).
+            reflection_length: Fraction of image height to show in reflection (0.0-1.0).
+
+        Returns:
+            Tuple of (reflected image with gradient fade, x_offset, y_offset).
+        """
+        if transformed is None:
+            return None, 0, 0
+
+        # Step 1: Flip the perspectived image vertically
+        reflection = cv2.flip(transformed, 0)
+
+        h, w = reflection.shape[:2]
+
+        # Step 2: Crop to reflection_length (top portion of flipped = bottom of original)
+        crop_h = max(1, int(h * reflection_length))
+        reflection = reflection[:crop_h, :]
+        h = crop_h
+
+        # Step 3: Apply gradient fade to alpha channel (broadcasting handles width)
+        gradient = np.linspace(1.0, 0, h, dtype=np.float32).reshape(-1, 1)
+
+        if reflection.shape[2] == 4:
+            # For BGRA: keep RGB intact, apply gradient to alpha only
+            rgb = reflection[:, :, :3]
+            alpha_channel = reflection[:, :, 3].astype(np.float32)
+            # Broadcasting: gradient (h,1) * alpha_channel (h,w) works automatically
+            alpha_channel = alpha_channel * gradient * alpha
+            reflection = np.dstack([rgb, alpha_channel.astype(np.uint8)])
+        else:
+            # For BGR: convert to BGRA and apply gradient to alpha
+            alpha_channel = (gradient * alpha * 255).astype(np.uint8)
+            # Broadcast to full width
+            alpha_channel = np.broadcast_to(alpha_channel, (h, w)).copy()
+            reflection = np.dstack([reflection, alpha_channel])
+
+        return reflection, x_offset, 0
 
     @staticmethod
     def blend_onto_canvas(

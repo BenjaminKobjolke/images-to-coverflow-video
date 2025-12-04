@@ -1,5 +1,6 @@
 """Coverflow frame rendering."""
 
+from multiprocessing import Pool, cpu_count
 from typing import List, Optional
 
 import cv2
@@ -7,6 +8,33 @@ import numpy as np
 
 from .config import Config
 from .transforms import ImageTransformer
+
+
+def _scale_single_image(args: tuple) -> np.ndarray:
+    """Scale a single image for parallel processing.
+
+    Module-level function required for multiprocessing.Pool.
+
+    Args:
+        args: Tuple of (image, max_width, max_height).
+
+    Returns:
+        Scaled BGRA image.
+    """
+    img, max_w, max_h = args
+
+    # Resize to fit max dimensions while maintaining aspect ratio
+    h, w = img.shape[:2]
+    scale = min(max_w / w, max_h / h)
+    new_w = int(w * scale)
+    new_h = int(h * scale)
+    img_resized = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+
+    # Convert to BGRA for alpha blending
+    if img_resized.shape[2] == 3:
+        img_resized = cv2.cvtColor(img_resized, cv2.COLOR_BGR2BGRA)
+
+    return img_resized
 
 
 def parse_hex_color(hex_color: str) -> tuple:
@@ -123,6 +151,7 @@ class CoverflowRenderer:
         """Pre-scale and cache all images for faster rendering.
 
         Call this once before generating video to avoid repeated resizing.
+        Uses parallel processing for larger image sets (>= 10 images).
 
         Args:
             images: List of original images.
@@ -132,18 +161,32 @@ class CoverflowRenderer:
 
         self._scaled_images_cache.clear()
 
-        for idx, img in enumerate(images):
-            # Resize to fit max dimensions
-            img_resized = self.transformer.resize_to_fit(img, max_img_width, max_img_height)
+        # Threshold for parallel processing (pool overhead not worth it for small sets)
+        MIN_IMAGES_FOR_PARALLEL = 10
 
-            # Convert to BGRA for alpha blending
-            if img_resized.shape[2] == 3:
-                img_rgba = cv2.cvtColor(img_resized, cv2.COLOR_BGR2BGRA)
-            else:
-                img_rgba = img_resized
+        if len(images) >= MIN_IMAGES_FOR_PARALLEL:
+            # Parallel processing for larger image sets
+            args = [(img, max_img_width, max_img_height) for img in images]
+            num_workers = min(cpu_count(), len(images))
 
-            # Cache using index as key
-            self._scaled_images_cache[idx] = img_rgba
+            with Pool(num_workers) as pool:
+                scaled_images = pool.map(_scale_single_image, args)
+
+            self._scaled_images_cache = {i: img for i, img in enumerate(scaled_images)}
+        else:
+            # Sequential processing for small sets (avoids pool overhead)
+            for idx, img in enumerate(images):
+                # Resize to fit max dimensions
+                img_resized = self.transformer.resize_to_fit(img, max_img_width, max_img_height)
+
+                # Convert to BGRA for alpha blending
+                if img_resized.shape[2] == 3:
+                    img_rgba = cv2.cvtColor(img_resized, cv2.COLOR_BGR2BGRA)
+                else:
+                    img_rgba = img_resized
+
+                # Cache using index as key
+                self._scaled_images_cache[idx] = img_rgba
 
     def _get_scaled_image(self, images: List[np.ndarray], idx: int) -> np.ndarray:
         """Get a pre-scaled image from cache or scale on-the-fly.
@@ -244,20 +287,12 @@ class CoverflowRenderer:
                     canvas, transformed, x_pos, y_pos
                 )
 
-                # Add reflection if enabled
+                # Add reflection if enabled (optimized: reuse already-transformed image)
                 if self.config.reflection > 0:
-                    reflection, refl_x, _ = self.transformer.create_reflection(
-                        img_rgba, position, self.config.width, self.config.height,
-                        alpha=self.config.reflection, perspective=self.config.perspective,
-                        side_scale=self.config.side_scale, spacing=self.config.spacing,
-                        mode=self.config.mode, reflection_length=self.config.reflection_length,
-                        side_blur=self.config.side_blur, side_alpha=self.config.side_alpha,
-                        side_scale_curve=self.config.side_scale_curve,
-                        side_blur_curve=self.config.side_blur_curve,
-                        side_alpha_curve=self.config.side_alpha_curve,
-                        side_scale_start=self.config.side_scale_start,
-                        side_blur_start=self.config.side_blur_start,
-                        side_alpha_start=self.config.side_alpha_start,
+                    reflection, refl_x, _ = self.transformer.create_reflection_from_transformed(
+                        transformed, x_pos,
+                        alpha=self.config.reflection,
+                        reflection_length=self.config.reflection_length,
                     )
                     if reflection is not None:
                         refl_y = y_pos + transformed.shape[0] + 5

@@ -2,6 +2,9 @@
 
 import sys
 import threading
+from concurrent.futures import ThreadPoolExecutor
+from queue import Queue, Empty
+from threading import Thread, Event
 from typing import Callable, List, Optional
 
 import cv2
@@ -11,6 +14,24 @@ import numpy as np
 from .config import Config
 from .renderer import CoverflowRenderer
 from .utils import get_easing_function
+
+
+class FrameBuffer:
+    """Thread-safe frame buffer for render/encode pipeline.
+
+    Separates rendering and encoding into different threads for smoother
+    CPU utilization and better FFmpeg buffer management.
+    """
+
+    def __init__(self, max_size: int = 30):
+        """Initialize the frame buffer.
+
+        Args:
+            max_size: Maximum number of frames to buffer (~1 second at 30fps).
+        """
+        self.queue: Queue = Queue(maxsize=max_size)
+        self.done = Event()
+        self.error: Optional[Exception] = None
 
 
 class VideoGenerator:
@@ -35,6 +56,9 @@ class VideoGenerator:
     ) -> np.ndarray:
         """Render a frame with motion blur by blending multiple sub-frames.
 
+        Uses parallel processing for >= 3 samples (thread pool overhead not worth it
+        for fewer samples). The perspective cache in transforms.py is thread-safe.
+
         Args:
             images: List of images.
             img_idx: Current center image index.
@@ -50,24 +74,76 @@ class VideoGenerator:
             # No motion blur, render single frame
             return self.renderer.render_frame(images, img_idx, base_offset)
 
-        # Pre-allocate accumulator buffer for better performance
-        accumulated = np.zeros(
-            (self.config.height, self.config.width, 3), dtype=np.float32
-        )
+        # Threshold for parallel processing (thread overhead not worth it for few samples)
+        MIN_SAMPLES_FOR_PARALLEL = 3
+        MAX_WORKERS = 4  # Diminishing returns beyond 4 threads
 
-        for i in range(num_samples):
-            # Calculate sub-frame offset (spread across the step to next frame)
-            sub_offset = base_offset + (i / num_samples) * step_size
-            # Clamp to valid range
-            sub_offset = min(sub_offset, 1.0)
+        def render_subframe(i: int) -> np.ndarray:
+            """Render a single sub-frame at the given sample index."""
+            sub_offset = min(base_offset + (i / num_samples) * step_size, 1.0)
+            return self.renderer.render_frame(images, img_idx, sub_offset)
 
-            # Render sub-frame and accumulate in-place
-            sub_frame = self.renderer.render_frame(images, img_idx, sub_offset)
-            np.add(accumulated, sub_frame, out=accumulated, casting='unsafe')
+        if num_samples >= MIN_SAMPLES_FOR_PARALLEL:
+            # Parallel rendering for better performance
+            with ThreadPoolExecutor(max_workers=min(num_samples, MAX_WORKERS)) as executor:
+                sub_frames = list(executor.map(render_subframe, range(num_samples)))
 
-        # Average and convert back to uint8
-        blended = (accumulated / num_samples).astype(np.uint8)
-        return blended
+            # Stack and average
+            accumulated = np.sum(sub_frames, axis=0, dtype=np.float32)
+            return (accumulated / num_samples).astype(np.uint8)
+        else:
+            # Sequential fallback for few samples (avoids thread overhead)
+            accumulated = np.zeros(
+                (self.config.height, self.config.width, 3), dtype=np.float32
+            )
+
+            for i in range(num_samples):
+                sub_frame = render_subframe(i)
+                np.add(accumulated, sub_frame, out=accumulated, casting='unsafe')
+
+            return (accumulated / num_samples).astype(np.uint8)
+
+    def _encode_frames(
+        self,
+        buffer: FrameBuffer,
+        writer,
+        progress_callback: Optional[Callable[[int, int], None]],
+        frames_to_render: int,
+    ) -> None:
+        """Encoder thread - reads frames from buffer and writes to video.
+
+        Runs in a separate thread to allow rendering and encoding to happen
+        concurrently, improving overall throughput.
+
+        Args:
+            buffer: Frame buffer to read from.
+            writer: Video writer (imageio) to write frames to.
+            progress_callback: Optional callback for progress updates.
+            frames_to_render: Total number of frames for progress calculation.
+        """
+        frames_written = 0
+        try:
+            while True:
+                # Check if we're done and buffer is empty
+                if buffer.done.is_set() and buffer.queue.empty():
+                    break
+
+                try:
+                    # Get frame with timeout to allow checking done flag
+                    frame = buffer.queue.get(timeout=0.1)
+                    writer.append_data(frame)
+                    frames_written += 1
+
+                    if progress_callback:
+                        progress_callback(frames_written, frames_to_render)
+
+                except Empty:
+                    # No frame available, check if we should exit
+                    continue
+
+        except Exception as e:
+            # Store error for main thread to handle
+            buffer.error = e
 
     def generate(
         self,
@@ -201,8 +277,18 @@ class VideoGenerator:
             print(f"Error: Could not create video file '{self.config.output}': {e}")
             sys.exit(1)
 
+        # Create frame buffer for render/encode pipeline
+        frame_buffer = FrameBuffer(max_size=30)
+
+        # Start encoder thread
+        encoder_thread = Thread(
+            target=self._encode_frames,
+            args=(frame_buffer, out, progress_callback, frames_to_render),
+            daemon=True
+        )
+        encoder_thread.start()
+
         absolute_frame = 0  # Track position in full video
-        frames_written = 0  # Track actually written frames
         generation_complete = False
 
         if start_frame > 0 or end_frame < total_frames - 1:
@@ -216,6 +302,8 @@ class VideoGenerator:
 
             # Check for cancellation
             if cancel_flag and cancel_flag.is_set():
+                frame_buffer.done.set()
+                encoder_thread.join(timeout=5.0)
                 out.close()
                 print("Video generation cancelled.")
                 return
@@ -226,12 +314,13 @@ class VideoGenerator:
             print(f"  Processing image {img_idx + 1}/{num_images} - hold phase")
 
             # Cache the hold frame - render once, write multiple times
-            hold_frame_cache = None
             hold_frame_rgb = None
 
             for frame in range(current_hold_frames):
                 # Check for cancellation
                 if cancel_flag and cancel_flag.is_set():
+                    frame_buffer.done.set()
+                    encoder_thread.join(timeout=5.0)
                     out.close()
                     print("Video generation cancelled.")
                     return
@@ -243,12 +332,8 @@ class VideoGenerator:
                         hold_frame_cache = self.renderer.render_frame(images, img_idx, 0)
                         hold_frame_rgb = cv2.cvtColor(hold_frame_cache, cv2.COLOR_BGR2RGB)
 
-                    out.append_data(hold_frame_rgb)
-                    frames_written += 1
-
-                    # Report progress based on frames to render
-                    if progress_callback:
-                        progress_callback(frames_written, frames_to_render)
+                    # Push frame to buffer (encoder thread handles writing)
+                    frame_buffer.queue.put(hold_frame_rgb)
 
                 absolute_frame += 1
 
@@ -267,6 +352,8 @@ class VideoGenerator:
                 for frame in range(transition_frames):
                     # Check for cancellation
                     if cancel_flag and cancel_flag.is_set():
+                        frame_buffer.done.set()
+                        encoder_thread.join(timeout=5.0)
                         out.close()
                         print("Video generation cancelled.")
                         return
@@ -280,12 +367,8 @@ class VideoGenerator:
 
                         # Render with motion blur if enabled
                         canvas = self._render_with_motion_blur(images, img_idx, offset, step_size)
-                        out.append_data(cv2.cvtColor(canvas, cv2.COLOR_BGR2RGB))
-                        frames_written += 1
-
-                        # Report progress
-                        if progress_callback:
-                            progress_callback(frames_written, frames_to_render)
+                        # Push frame to buffer (encoder thread handles writing)
+                        frame_buffer.queue.put(cv2.cvtColor(canvas, cv2.COLOR_BGR2RGB))
 
                     absolute_frame += 1
 
@@ -301,6 +384,8 @@ class VideoGenerator:
             for frame in range(transition_frames):
                 # Check for cancellation
                 if cancel_flag and cancel_flag.is_set():
+                    frame_buffer.done.set()
+                    encoder_thread.join(timeout=5.0)
                     out.close()
                     print("Video generation cancelled.")
                     return
@@ -314,12 +399,8 @@ class VideoGenerator:
 
                     # Render with motion blur if enabled
                     canvas = self._render_with_motion_blur(images, num_images - 1, offset, step_size)
-                    out.append_data(cv2.cvtColor(canvas, cv2.COLOR_BGR2RGB))
-                    frames_written += 1
-
-                    # Report progress
-                    if progress_callback:
-                        progress_callback(frames_written, frames_to_render)
+                    # Push frame to buffer (encoder thread handles writing)
+                    frame_buffer.queue.put(cv2.cvtColor(canvas, cv2.COLOR_BGR2RGB))
 
                 absolute_frame += 1
 
@@ -327,5 +408,13 @@ class VideoGenerator:
                 if absolute_frame > end_frame:
                     break
 
+        # Signal encoder thread that rendering is complete
+        frame_buffer.done.set()
+        encoder_thread.join(timeout=30.0)  # Wait for encoder to finish
+
+        # Check for encoder errors
+        if frame_buffer.error:
+            print(f"Warning: Encoder error occurred: {frame_buffer.error}")
+
         out.close()
-        print(f"Video saved to '{self.config.output}' ({frames_written} frames)")
+        print(f"Video saved to '{self.config.output}'")

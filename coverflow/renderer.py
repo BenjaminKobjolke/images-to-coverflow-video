@@ -37,6 +37,10 @@ class CoverflowRenderer:
         self.config = config
         self.transformer = ImageTransformer()
         self.background_image = self._load_background(config.background)
+        # Cache for pre-scaled images (keyed by image id)
+        self._scaled_images_cache: dict = {}
+        # Cache for the background (created once, reused)
+        self._cached_background: Optional[np.ndarray] = None
 
     def _load_background(self, path: Optional[str]) -> Optional[np.ndarray]:
         """Load and resize background image.
@@ -76,26 +80,29 @@ class CoverflowRenderer:
         Returns:
             Background canvas (color, custom image, or gradient).
         """
+        # Return cached background if available (just copy to avoid mutations)
+        if self._cached_background is not None:
+            return self._cached_background.copy()
+
         # Start with color or gradient as base
         if self.config.background_color:
             top_color = parse_hex_color(self.config.background_color)
             if self.config.background_color_bottom:
-                # Two-color vertical gradient
+                # Two-color vertical gradient (vectorized for speed)
                 bottom_color = parse_hex_color(self.config.background_color_bottom)
-                canvas = np.zeros((self.config.height, self.config.width, 3), dtype=np.uint8)
-                for y in range(self.config.height):
-                    t = y / self.config.height
-                    color = [int(top_color[i] * (1 - t) + bottom_color[i] * t) for i in range(3)]
-                    canvas[y, :] = color
+                t = np.linspace(0, 1, self.config.height).reshape(-1, 1, 1)
+                top_arr = np.array(top_color, dtype=np.float32)
+                bottom_arr = np.array(bottom_color, dtype=np.float32)
+                gradient = top_arr * (1 - t) + bottom_arr * t
+                canvas = np.broadcast_to(gradient, (self.config.height, self.config.width, 3)).astype(np.uint8).copy()
             else:
                 # Solid color
                 canvas = np.full((self.config.height, self.config.width, 3), top_color, dtype=np.uint8)
         else:
-            # Default: gradient background (dark gray to black)
-            canvas = np.zeros((self.config.height, self.config.width, 3), dtype=np.uint8)
-            for y in range(self.config.height):
-                intensity = int(40 * (1 - y / self.config.height))
-                canvas[y, :] = [intensity, intensity, intensity]
+            # Default: gradient background (dark gray to black) - vectorized
+            t = np.linspace(1, 0, self.config.height).reshape(-1, 1, 1)
+            intensity = (40 * t).astype(np.uint8)
+            canvas = np.broadcast_to(intensity, (self.config.height, self.config.width, 3)).copy()
 
         # Overlay background image if exists
         if self.background_image is not None:
@@ -107,7 +114,62 @@ class CoverflowRenderer:
             else:
                 canvas = self.background_image.copy()
 
+        # Cache the background for future use
+        self._cached_background = canvas.copy()
+
         return canvas
+
+    def prepare_images(self, images: List[np.ndarray]) -> None:
+        """Pre-scale and cache all images for faster rendering.
+
+        Call this once before generating video to avoid repeated resizing.
+
+        Args:
+            images: List of original images.
+        """
+        max_img_width = int(self.config.width * self.config.image_scale)
+        max_img_height = int(self.config.height * self.config.image_scale)
+
+        self._scaled_images_cache.clear()
+
+        for idx, img in enumerate(images):
+            # Resize to fit max dimensions
+            img_resized = self.transformer.resize_to_fit(img, max_img_width, max_img_height)
+
+            # Convert to BGRA for alpha blending
+            if img_resized.shape[2] == 3:
+                img_rgba = cv2.cvtColor(img_resized, cv2.COLOR_BGR2BGRA)
+            else:
+                img_rgba = img_resized
+
+            # Cache using index as key
+            self._scaled_images_cache[idx] = img_rgba
+
+    def _get_scaled_image(self, images: List[np.ndarray], idx: int) -> np.ndarray:
+        """Get a pre-scaled image from cache or scale on-the-fly.
+
+        Args:
+            images: List of original images.
+            idx: Image index.
+
+        Returns:
+            Scaled BGRA image.
+        """
+        if idx in self._scaled_images_cache:
+            return self._scaled_images_cache[idx]
+
+        # Fallback: scale on-the-fly if not cached
+        max_img_width = int(self.config.width * self.config.image_scale)
+        max_img_height = int(self.config.height * self.config.image_scale)
+
+        img_resized = self.transformer.resize_to_fit(images[idx], max_img_width, max_img_height)
+
+        if img_resized.shape[2] == 3:
+            img_rgba = cv2.cvtColor(img_resized, cv2.COLOR_BGR2BGRA)
+        else:
+            img_rgba = img_resized
+
+        return img_rgba
 
     def render_frame(
         self, images: List[np.ndarray], center_idx: int, offset: float
@@ -141,7 +203,8 @@ class CoverflowRenderer:
                 # Get depth for z-ordering (center = highest z)
                 depth = abs(position)
 
-                to_render.append((depth, position, images[img_idx]))
+                # Store index instead of image for cache lookup
+                to_render.append((depth, position, img_idx))
 
         # Sort by depth (render far images first, center last)
         to_render.sort(key=lambda x: -x[0])
@@ -151,17 +214,9 @@ class CoverflowRenderer:
         max_img_height = int(self.config.height * self.config.image_scale)
 
         # Render each image
-        for depth, position, img_cv in to_render:
-            # Resize image to fit
-            img_resized = self.transformer.resize_to_fit(
-                img_cv, max_img_width, max_img_height
-            )
-
-            # Convert to BGRA for alpha blending
-            if img_resized.shape[2] == 3:
-                img_rgba = cv2.cvtColor(img_resized, cv2.COLOR_BGR2BGRA)
-            else:
-                img_rgba = img_resized
+        for depth, position, img_idx in to_render:
+            # Get pre-scaled image from cache (or scale on-the-fly as fallback)
+            img_rgba = self._get_scaled_image(images, img_idx)
 
             # Apply perspective transform
             transformed, x_pos, y_pos = self.transformer.apply_perspective(

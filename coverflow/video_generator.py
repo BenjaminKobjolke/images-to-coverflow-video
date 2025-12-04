@@ -50,9 +50,10 @@ class VideoGenerator:
             # No motion blur, render single frame
             return self.renderer.render_frame(images, img_idx, base_offset)
 
-        # Render multiple sub-frames and blend
-        # Use float32 accumulator for precision
-        accumulated = None
+        # Pre-allocate accumulator buffer for better performance
+        accumulated = np.zeros(
+            (self.config.height, self.config.width, 3), dtype=np.float32
+        )
 
         for i in range(num_samples):
             # Calculate sub-frame offset (spread across the step to next frame)
@@ -60,13 +61,9 @@ class VideoGenerator:
             # Clamp to valid range
             sub_offset = min(sub_offset, 1.0)
 
-            # Render sub-frame
+            # Render sub-frame and accumulate in-place
             sub_frame = self.renderer.render_frame(images, img_idx, sub_offset)
-
-            if accumulated is None:
-                accumulated = sub_frame.astype(np.float32)
-            else:
-                accumulated += sub_frame.astype(np.float32)
+            np.add(accumulated, sub_frame, out=accumulated, casting='unsafe')
 
         # Average and convert back to uint8
         blended = (accumulated / num_samples).astype(np.uint8)
@@ -169,6 +166,10 @@ class VideoGenerator:
             print(f"Preview saved to 'preview.jpg' (frame {target_frame}, image {img_idx + 1}/{num_images})")
             return
 
+        # Pre-scale all images for faster rendering
+        print("Preparing images...")
+        self.renderer.prepare_images(images)
+
         # Build FFmpeg output parameters
         output_params = ['-preset', self.config.preset, '-crf', str(self.config.crf)]
         if self.config.max_bitrate:
@@ -223,6 +224,11 @@ class VideoGenerator:
             # First image uses first_hold_frames, rest use hold_frames
             current_hold_frames = first_hold_frames if img_idx == 0 else hold_frames
             print(f"  Processing image {img_idx + 1}/{num_images} - hold phase")
+
+            # Cache the hold frame - render once, write multiple times
+            hold_frame_cache = None
+            hold_frame_rgb = None
+
             for frame in range(current_hold_frames):
                 # Check for cancellation
                 if cancel_flag and cancel_flag.is_set():
@@ -232,8 +238,12 @@ class VideoGenerator:
 
                 # Only write frames within the specified range
                 if start_frame <= absolute_frame <= end_frame:
-                    canvas = self.renderer.render_frame(images, img_idx, 0)
-                    out.append_data(cv2.cvtColor(canvas, cv2.COLOR_BGR2RGB))
+                    # Render hold frame only once, then reuse
+                    if hold_frame_rgb is None:
+                        hold_frame_cache = self.renderer.render_frame(images, img_idx, 0)
+                        hold_frame_rgb = cv2.cvtColor(hold_frame_cache, cv2.COLOR_BGR2RGB)
+
+                    out.append_data(hold_frame_rgb)
                     frames_written += 1
 
                     # Report progress based on frames to render

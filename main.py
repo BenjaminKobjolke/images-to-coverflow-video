@@ -457,8 +457,13 @@ def main():
     images = loader.load_images()
 
     # Generate video
+    def print_progress(current: int, total: int):
+        percent = int((current / total) * 100) if total > 0 else 0
+        print(f"\r  Rendering frame {current} of {total} ({percent}%)    ", end="", flush=True)
+
     generator = VideoGenerator(config)
-    generator.generate(images)
+    generator.generate(images, progress_callback=print_progress)
+    print()  # Newline after progress
 
     print("Done!")
 

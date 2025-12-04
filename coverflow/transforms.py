@@ -11,9 +11,14 @@ from .utils import apply_decay_curve, apply_increase_curve
 class ImageTransformer:
     """Handles image transformations for coverflow effect."""
 
+    # Class-level cache for perspective transform matrices
+    _perspective_cache: dict = {}
+
     @staticmethod
     def resize_to_fit(img: np.ndarray, max_width: int, max_height: int) -> np.ndarray:
         """Resize image to fit within bounds while maintaining aspect ratio.
+
+        Uses INTER_LINEAR for speed during pre-scaling (good quality/speed balance).
 
         Args:
             img: Input image.
@@ -27,7 +32,7 @@ class ImageTransformer:
         scale = min(max_width / w, max_height / h)
         new_w = int(w * scale)
         new_h = int(h * scale)
-        return cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_LANCZOS4)
+        return cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
 
     @staticmethod
     def apply_perspective(
@@ -146,31 +151,40 @@ class ImageTransformer:
         h_inset = int(new_w * perspective_amount)  # Horizontal inset
         v_inset = int(new_h * perspective_amount / 2)  # Vertical inset (centered)
 
-        # Source points (original rectangle)
-        pts1 = np.float32([
-            [0, 0],           # top-left
-            [new_w, 0],       # top-right
-            [0, new_h],       # bottom-left
-            [new_w, new_h]    # bottom-right
-        ])
+        # Cache key for perspective matrix (based on dimensions and insets)
+        is_left = angle < 0
+        cache_key = (new_w, new_h, h_inset, v_inset, is_left)
 
-        if angle < 0:  # Left side - left edge is far (smaller)
-            pts2 = np.float32([
-                [h_inset, v_inset],              # top-left: moves right and down
-                [new_w, 0],                       # top-right: stays
-                [h_inset, new_h - v_inset],      # bottom-left: moves right and up
-                [new_w, new_h]                    # bottom-right: stays
-            ])
-        else:  # Right side - right edge is far (smaller)
-            pts2 = np.float32([
-                [0, 0],                           # top-left: stays
-                [new_w - h_inset, v_inset],       # top-right: moves left and down
-                [0, new_h],                       # bottom-left: stays
-                [new_w - h_inset, new_h - v_inset]  # bottom-right: moves left and up
+        # Check cache for pre-computed matrix
+        if cache_key in ImageTransformer._perspective_cache:
+            matrix = ImageTransformer._perspective_cache[cache_key]
+        else:
+            # Source points (original rectangle)
+            pts1 = np.float32([
+                [0, 0],           # top-left
+                [new_w, 0],       # top-right
+                [0, new_h],       # bottom-left
+                [new_w, new_h]    # bottom-right
             ])
 
-        # Get perspective transform matrix
-        matrix = cv2.getPerspectiveTransform(pts1, pts2)
+            if is_left:  # Left side - left edge is far (smaller)
+                pts2 = np.float32([
+                    [h_inset, v_inset],              # top-left: moves right and down
+                    [new_w, 0],                       # top-right: stays
+                    [h_inset, new_h - v_inset],      # bottom-left: moves right and up
+                    [new_w, new_h]                    # bottom-right: stays
+                ])
+            else:  # Right side - right edge is far (smaller)
+                pts2 = np.float32([
+                    [0, 0],                           # top-left: stays
+                    [new_w - h_inset, v_inset],       # top-right: moves left and down
+                    [0, new_h],                       # bottom-left: stays
+                    [new_w - h_inset, new_h - v_inset]  # bottom-right: moves left and up
+                ])
+
+            # Compute and cache perspective transform matrix
+            matrix = cv2.getPerspectiveTransform(pts1, pts2)
+            ImageTransformer._perspective_cache[cache_key] = matrix
 
         # Apply transform
         transformed = cv2.warpPerspective(
@@ -254,19 +268,21 @@ class ImageTransformer:
         transformed = transformed[:crop_h, :]
         h = crop_h
 
-        # Step 4: Apply gradient fade to alpha channel
-        gradient = np.linspace(1.0, 0, h).reshape(-1, 1)
-        gradient = np.tile(gradient, (1, w))
+        # Step 4: Apply gradient fade to alpha channel (broadcasting handles width)
+        gradient = np.linspace(1.0, 0, h, dtype=np.float32).reshape(-1, 1)
 
         if transformed.shape[2] == 4:
             # For BGRA: keep RGB intact, apply gradient to alpha only
             rgb = transformed[:, :, :3]
             alpha_channel = transformed[:, :, 3].astype(np.float32)
+            # Broadcasting: gradient (h,1) * alpha_channel (h,w) works automatically
             alpha_channel = alpha_channel * gradient * alpha
             transformed = np.dstack([rgb, alpha_channel.astype(np.uint8)])
         else:
             # For BGR: convert to BGRA and apply gradient to alpha
             alpha_channel = (gradient * alpha * 255).astype(np.uint8)
+            # Broadcast to full width
+            alpha_channel = np.broadcast_to(alpha_channel, (h, w)).copy()
             transformed = np.dstack([transformed, alpha_channel])
 
         return transformed, x_offset, y_offset

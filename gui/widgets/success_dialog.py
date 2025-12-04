@@ -156,6 +156,9 @@ class SuccessDialog(ctk.CTkToplevel):
         # Bind Enter key to open video
         self.bind("<Return>", lambda e: self._on_open())
 
+        # Ensure dialog has keyboard focus
+        self.focus_force()
+
     def _on_open(self):
         """Open the video file."""
         try:

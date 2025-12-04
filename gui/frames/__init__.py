@@ -4,9 +4,12 @@ from .source_frame import SourceFrame
 from .video_frame import VideoFrame
 from .timing_frame import TimingFrame
 from .layout_frame import LayoutFrame
-from .transform_frame import TransformFrame
+from .perspective_frame import PerspectiveFrame
+from .depth_effects_frame import DepthEffectsFrame
 from .image_frame import ImageFrame
-from .effects_frame import EffectsFrame
+from .background_frame import BackgroundFrame
+from .reflection_frame import ReflectionFrame
+from .playback_frame import PlaybackFrame
 from .preview_frame import PreviewFrame
 
 __all__ = [
@@ -14,8 +17,11 @@ __all__ = [
     "VideoFrame",
     "TimingFrame",
     "LayoutFrame",
-    "TransformFrame",
+    "PerspectiveFrame",
+    "DepthEffectsFrame",
     "ImageFrame",
-    "EffectsFrame",
+    "BackgroundFrame",
+    "ReflectionFrame",
+    "PlaybackFrame",
     "PreviewFrame",
 ]

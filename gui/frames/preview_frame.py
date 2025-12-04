@@ -253,15 +253,17 @@ class PreviewFrame(ctk.CTkFrame):
     def set_loading(self, loading: bool = True):
         """Show loading state."""
         if loading:
-            self.preview_label.configure(text="Loading preview...")
+            # Clear image first to avoid pyimage reference errors
+            self._current_image = None
+            self.preview_label.configure(image="", text="Loading preview...")
             self.refresh_btn.configure(state="disabled")
         else:
             self.refresh_btn.configure(state="normal")
 
     def show_error(self, message: str):
         """Show an error message in the preview area."""
-        self.preview_label.configure(image=None, text=message)
         self._current_image = None
+        self.preview_label.configure(image="", text=message)
 
     def get_render_range(self) -> Tuple[Optional[int], Optional[int]]:
         """Get the selected render range.

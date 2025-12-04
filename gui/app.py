@@ -14,9 +14,12 @@ from .frames import (
     VideoFrame,
     TimingFrame,
     LayoutFrame,
-    TransformFrame,
+    PerspectiveFrame,
+    DepthEffectsFrame,
     ImageFrame,
-    EffectsFrame,
+    BackgroundFrame,
+    ReflectionFrame,
+    PlaybackFrame,
     PreviewFrame,
 )
 from .widgets import ProgressDialog, SuccessDialog
@@ -94,7 +97,7 @@ class CoverflowApp(ctk.CTkFrame):
         )
         self.source_frame.pack(fill="x", pady=(0, 5))
 
-        # Video settings
+        # Output settings
         self.video_frame = VideoFrame(self.sidebar)
         self.video_frame.pack(fill="x", pady=5)
 
@@ -108,17 +111,29 @@ class CoverflowApp(ctk.CTkFrame):
         )
         self.layout_frame.pack(fill="x", pady=5)
 
-        # Transform settings
-        self.transform_frame = TransformFrame(self.sidebar)
-        self.transform_frame.pack(fill="x", pady=5)
-
-        # Image settings
+        # Image Size settings
         self.image_frame = ImageFrame(self.sidebar)
         self.image_frame.pack(fill="x", pady=5)
 
-        # Effects settings
-        self.effects_frame = EffectsFrame(self.sidebar)
-        self.effects_frame.pack(fill="x", pady=5)
+        # Background settings
+        self.background_frame = BackgroundFrame(self.sidebar)
+        self.background_frame.pack(fill="x", pady=5)
+
+        # Perspective settings
+        self.perspective_frame = PerspectiveFrame(self.sidebar)
+        self.perspective_frame.pack(fill="x", pady=5)
+
+        # Depth Effects settings
+        self.depth_effects_frame = DepthEffectsFrame(self.sidebar)
+        self.depth_effects_frame.pack(fill="x", pady=5)
+
+        # Reflection settings
+        self.reflection_frame = ReflectionFrame(self.sidebar)
+        self.reflection_frame.pack(fill="x", pady=5)
+
+        # Playback settings
+        self.playback_frame = PlaybackFrame(self.sidebar)
+        self.playback_frame.pack(fill="x", pady=5)
 
     def _create_sidebar_2col(self):
         """Create sidebar frames in two column layout."""
@@ -133,7 +148,7 @@ class CoverflowApp(ctk.CTkFrame):
         col2 = ctk.CTkFrame(self.sidebar, fg_color="transparent")
         col2.grid(row=0, column=1, sticky="new", padx=(5, 0))
 
-        # Column 1: Source, Video, Timing
+        # Column 1: Source, Output, Timing, Layout, Image Size
         self.source_frame = SourceFrame(col1, command=self._on_source_change)
         self.source_frame.pack(fill="x", pady=(0, 5))
 
@@ -143,18 +158,27 @@ class CoverflowApp(ctk.CTkFrame):
         self.timing_frame = TimingFrame(col1)
         self.timing_frame.pack(fill="x", pady=5)
 
-        # Column 2: 3D Effect, Image, Layout, Effects
-        self.transform_frame = TransformFrame(col2)
-        self.transform_frame.pack(fill="x", pady=(0, 5))
-
-        self.image_frame = ImageFrame(col2)
-        self.image_frame.pack(fill="x", pady=5)
-
-        self.layout_frame = LayoutFrame(col2, on_mode_change=self._on_mode_change)
+        self.layout_frame = LayoutFrame(col1, on_mode_change=self._on_mode_change)
         self.layout_frame.pack(fill="x", pady=5)
 
-        self.effects_frame = EffectsFrame(col2)
-        self.effects_frame.pack(fill="x", pady=5)
+        self.image_frame = ImageFrame(col1)
+        self.image_frame.pack(fill="x", pady=5)
+
+        # Column 2: Background, Perspective, Depth Effects, Reflection, Playback
+        self.background_frame = BackgroundFrame(col2)
+        self.background_frame.pack(fill="x", pady=(0, 5))
+
+        self.perspective_frame = PerspectiveFrame(col2)
+        self.perspective_frame.pack(fill="x", pady=5)
+
+        self.depth_effects_frame = DepthEffectsFrame(col2)
+        self.depth_effects_frame.pack(fill="x", pady=5)
+
+        self.reflection_frame = ReflectionFrame(col2)
+        self.reflection_frame.pack(fill="x", pady=5)
+
+        self.playback_frame = PlaybackFrame(col2)
+        self.playback_frame.pack(fill="x", pady=5)
 
     def _create_main_panel(self):
         """Create the main panel with preview and controls."""
@@ -212,17 +236,29 @@ class CoverflowApp(ctk.CTkFrame):
             "visible_range": 3,
             "spacing": 0.35,
         })
-        self.transform_frame.set_values({
-            "perspective": 0.3,
-            "side_scale": 0.8,
-        })
         self.image_frame.set_values({
             "image_scale": 0.6,
             "image_y": 0.5,
         })
-        self.effects_frame.set_values({
+        self.perspective_frame.set_values({
+            "perspective": 0.3,
+        })
+        self.depth_effects_frame.set_values({
+            "side_scale": 0.8,
+            "side_blur": 0.0,
+            "side_alpha": 1.0,
+            "side_scale_curve": "exponential",
+            "side_blur_curve": "linear",
+            "side_alpha_curve": "exponential",
+            "side_scale_start": 1,
+            "side_blur_start": 1,
+            "side_alpha_start": 1,
+        })
+        self.reflection_frame.set_values({
             "reflection": 0.2,
             "reflection_length": 0.5,
+        })
+        self.playback_frame.set_values({
             "repeat": False,
         })
 
@@ -233,9 +269,12 @@ class CoverflowApp(ctk.CTkFrame):
         values.update(self.video_frame.get_values())
         values.update(self.timing_frame.get_values())
         values.update(self.layout_frame.get_values())
-        values.update(self.transform_frame.get_values())
         values.update(self.image_frame.get_values())
-        values.update(self.effects_frame.get_values())
+        values.update(self.background_frame.get_values())
+        values.update(self.perspective_frame.get_values())
+        values.update(self.depth_effects_frame.get_values())
+        values.update(self.reflection_frame.get_values())
+        values.update(self.playback_frame.get_values())
 
         # Include render range
         start, end = self.preview_frame.get_render_range()
@@ -251,9 +290,12 @@ class CoverflowApp(ctk.CTkFrame):
         self.video_frame.set_values(values)
         self.timing_frame.set_values(values)
         self.layout_frame.set_values(values)
-        self.transform_frame.set_values(values)
         self.image_frame.set_values(values)
-        self.effects_frame.set_values(values)
+        self.background_frame.set_values(values)
+        self.perspective_frame.set_values(values)
+        self.depth_effects_frame.set_values(values)
+        self.reflection_frame.set_values(values)
+        self.playback_frame.set_values(values)
 
         # Update total frames first (needed for range slider bounds)
         self._update_total_frames()
@@ -286,11 +328,24 @@ class CoverflowApp(ctk.CTkFrame):
             height=values["height"],
             transition=values["transition"],
             hold=values["hold"],
+            first_hold=values.get("first_hold"),
+            easing=values.get("easing", "ease_in_out_cubic"),
+            motion_blur=values.get("motion_blur", 0),
             fps=values["fps"],
             output=values["output"],
             background=values.get("background"),
+            background_color=values.get("background_color"),
+            background_color_bottom=values.get("background_color_bottom"),
             perspective=values["perspective"],
             side_scale=values["side_scale"],
+            side_blur=values.get("side_blur", 0.0),
+            side_alpha=values.get("side_alpha", 1.0),
+            side_scale_curve=values.get("side_scale_curve", "exponential"),
+            side_blur_curve=values.get("side_blur_curve", "linear"),
+            side_alpha_curve=values.get("side_alpha_curve", "exponential"),
+            side_scale_start=values.get("side_scale_start", 1),
+            side_blur_start=values.get("side_blur_start", 1),
+            side_alpha_start=values.get("side_alpha_start", 1),
             visible_range=values["visible_range"],
             spacing=values["spacing"],
             reflection=values["reflection"],
@@ -316,7 +371,7 @@ class CoverflowApp(ctk.CTkFrame):
     def _on_mode_change(self, mode: str):
         """Handle layout mode change - enable/disable perspective for flat mode."""
         # Perspective has no effect in flat mode, so disable it
-        self.transform_frame.set_perspective_enabled(mode == "arc")
+        self.perspective_frame.set_perspective_enabled(mode == "arc")
 
     def _update_total_frames(self):
         """Update the total frames in the preview frame."""

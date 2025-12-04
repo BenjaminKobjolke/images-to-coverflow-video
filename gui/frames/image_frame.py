@@ -14,7 +14,7 @@ class ImageFrame(ctk.CTkFrame):
 
         # Title
         self.title_label = ctk.CTkLabel(
-            self, text="Image", font=get_font(weight="bold")
+            self, text="Image Size", font=get_font(weight="bold")
         )
         self.title_label.pack(anchor="w", padx=10, pady=(10, 5))
 

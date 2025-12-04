@@ -14,7 +14,7 @@ class VideoFrame(ctk.CTkFrame):
 
         # Title
         self.title_label = ctk.CTkLabel(
-            self, text="Video Output", font=get_font(weight="bold")
+            self, text="Output", font=get_font(weight="bold")
         )
         self.title_label.pack(anchor="w", padx=10, pady=(10, 5))
 

@@ -19,6 +19,39 @@ def open_file(filepath: str):
         subprocess.Popen(["xdg-open", filepath])
 
 
+def shorten_path(filepath: str, max_length: int = 60) -> str:
+    """Shorten a file path by truncating the middle.
+
+    Args:
+        filepath: The full file path to shorten.
+        max_length: Maximum length before truncation.
+
+    Returns:
+        Shortened path like "C:/Users/.../filename.mp4"
+    """
+    if len(filepath) <= max_length:
+        return filepath
+
+    path = Path(filepath)
+    filename = path.name
+
+    # Keep drive/root + ... + filename
+    parts = path.parts
+    if len(parts) <= 2:
+        return filepath
+
+    # Start with first part (drive or root) and second part
+    start = str(Path(parts[0]) / parts[1])
+
+    shortened = f"{start}/.../{filename}"
+
+    # If still too long, just show .../filename
+    if len(shortened) > max_length:
+        shortened = f".../{filename}"
+
+    return shortened
+
+
 def open_folder(filepath: str):
     """Open folder containing the file and select it."""
     path = Path(filepath).resolve()
@@ -51,7 +84,7 @@ class SuccessDialog(ctk.CTkToplevel):
 
         # Window setup
         self.title("Success")
-        self.geometry("450x180")
+        self.geometry("450x220")
         self.resizable(False, False)
         self.transient(master)
         self.grab_set()
@@ -59,7 +92,7 @@ class SuccessDialog(ctk.CTkToplevel):
         # Center on parent
         self.update_idletasks()
         x = master.winfo_rootx() + (master.winfo_width() - 450) // 2
-        y = master.winfo_rooty() + (master.winfo_height() - 180) // 2
+        y = master.winfo_rooty() + (master.winfo_height() - 220) // 2
         self.geometry(f"+{x}+{y}")
 
         # Layout
@@ -73,10 +106,10 @@ class SuccessDialog(ctk.CTkToplevel):
         )
         success_label.grid(row=0, column=0, padx=20, pady=(20, 10))
 
-        # Filepath label
+        # Filepath label (shortened for display)
         filepath_label = ctk.CTkLabel(
             self,
-            text=f"Saved to: {filepath}",
+            text=f"Saved to: {shorten_path(filepath)}",
             wraplength=410,
             font=get_font(),
         )
@@ -119,6 +152,9 @@ class SuccessDialog(ctk.CTkToplevel):
 
         # Handle window close
         self.protocol("WM_DELETE_WINDOW", self._on_close)
+
+        # Bind Enter key to open video
+        self.bind("<Return>", lambda e: self._on_open())
 
     def _on_open(self):
         """Open the video file."""
